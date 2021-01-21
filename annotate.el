@@ -268,6 +268,8 @@ annotation as defined in the database."
 (defconst annotate-summary-replace-button-label "[replace]"
   "The label for the button, in summary window, to replace an annotation")
 
+(defvar annotate-cached-database ())
+
 ;;;; custom errors
 
 (define-error 'annotate-error "Annotation error")
@@ -434,6 +436,7 @@ modified (for example a newline is inserted)."
 
 (defun annotate-initialize ()
   "Load annotations and set up save and display hooks."
+;;(setq annotate-cached-database ())
   (annotate-load-annotations)
   (add-hook 'after-save-hook                  'annotate-save-annotations t t)
   (add-hook 'window-configuration-change-hook 'font-lock-fontify-buffer  t t)
@@ -1511,23 +1514,39 @@ annotation."
                        (t
                         (insert-file-contents annotate-file)
                         (mapcar 'annotate--expand-record-path (read (current-buffer))))))))))
-    (if ignore-errors
-        (ignore-errors (%load-annotation-data))
-      (%load-annotation-data))))
+    ;; (message "db %S %S %S"
+    ;;          annotate-file
+    ;;          annotate-cached-database
+    ;;          (local-variable-p 'annotate-cached-database))
+    (cond
+     (annotate-cached-database
+      (mapcar 'annotate--expand-record-path
+              annotate-cached-database))
+     (ignore-errors
+       (let ((new-db (ignore-errors (%load-annotation-data))))
+         (setf annotate-cached-database new-db)
+         new-db))
+     (t
+      (let ((new-db (%load-annotation-data)))
+        (setf annotate-cached-database new-db)
+        new-db)))))
 
 (defun annotate-dump-annotation-data (data)
   "Save `data` into annotation file."
-  (with-temp-file annotate-file
-    (let* ((print-length nil)
-           (%abbreviate-filename (lambda (record)
-                                   (let ((full-filename (annotate-filename-from-dump    record))
-                                         (annotations   (annotate-annotations-from-dump record))
-                                         (file-checksum (annotate-checksum-from-dump    record)))
-                                     (annotate-make-record (abbreviate-file-name full-filename)
-                                                           annotations
-                                                           file-checksum))))
-           (actual-data (mapcar %abbreviate-filename data)))
-      (prin1 actual-data (current-buffer)))))
+  (let ((cached-database annotate-cached-database))
+    (with-temp-file annotate-file
+      (let* ((print-length nil)
+             (%abbreviate-filename (lambda (record)
+                                     (let ((full-filename (annotate-filename-from-dump    record))
+                                           (annotations   (annotate-annotations-from-dump record))
+                                           (file-checksum (annotate-checksum-from-dump    record)))
+                                       (annotate-make-record (abbreviate-file-name full-filename)
+                                                             annotations
+                                                             file-checksum))))
+             (actual-data (mapcar %abbreviate-filename data)))
+        (setf cached-database actual-data)
+        (prin1 actual-data (current-buffer))))
+    (setf annotate-cached-database cached-database)))
 
 (cl-defmacro with-matching-annotation-fns ((filename
                                             beginning

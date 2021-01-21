@@ -2,6 +2,8 @@
 #+AUTHOR:
 #+TITLE: Annotate.el
 
+* Note this is an experimental branch, for testing only!
+
 [[http://melpa.org/#/annotate][http://melpa.org/packages/annotate-badge.svg]]
 
 [[http://stable.melpa.org/#/annotate][http://stable.melpa.org/packages/annotate-badge.svg]]
