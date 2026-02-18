@@ -1674,8 +1674,8 @@ buffer is not on info-mode"
 
 (defun annotate--generate-unique-id ()
   "Generate an unique string identifier
-(note: implements time based  UUIDv1 (see: rfc9562)."
-  (let* ((now        (+ (car (time-convert nil 10000000))
+Note: implements time based  UUIDv1 (see: rfc9562)."
+  (let* ((now        (+ (car (time-convert nil 10000000)) ; accuracy: 100 nanoseconds
                         #x01b21dd213814000)) ; convert unix epoch to gregorian epoch
          (time-low   (logand #xffffffff now))
          (time-mid   (logand #xffff (ash now -32)))
