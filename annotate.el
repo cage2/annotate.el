@@ -1673,7 +1673,8 @@ buffer is not on info-mode"
     hw-address))
 
 (defun annotate--generate-unique-id ()
-  "Generate an unique string identifier (note: implements time based  UUIDv1 (see: rfc9562)."
+  "Generate an unique string identifier
+(note: implements time based  UUIDv1 (see: rfc9562)."
   (let* ((now        (+ (car (time-convert nil 10000000))
                         #x01b21dd213814000)) ; convert unix epoch to gregorian epoch
          (time-low   (logand #xffffffff now))
@@ -1744,15 +1745,15 @@ file."
   (cl-first record))
 
 (defun annotate-beginning-of-annotation (annotation-serialized)
-  "Get the starting point of an annotation. The arg ANNOTATION-SERIALIZED must be a single
-annotation field got from a file dump of all annotated buffers,
+  "Get the starting point of an annotation. The arg ANNOTATION-SERIALIZED
+must be a single annotation field got from a file dump of all annotated buffers,
 essentially what you get from:
 \(annotate-annotations-from-dump (nth index (annotate-load-annotations))))."
   (cl-first annotation-serialized))
 
 (defun annotate-ending-of-annotation (annotation-serialized)
-  "Get the ending point of an annotation. The arg ANNOTATION-SERIALIZED must be a single
-annotation field got from a file dump of all annotated buffers,
+  "Get the ending point of an annotation. The arg ANNOTATION-SERIALIZED
+must be a single annotation field got from a file dump of all annotated buffers,
 essentially what you get from:
 \(annotate-annotations-from-dump (nth index (annotate-load-annotations))))."
   (cl-second annotation-serialized))
@@ -1793,9 +1794,9 @@ essentially what you get from:
   (nth 2 annotation-serialized))
 
 (defun annotate-annotated-text (annotation-serialized)
-  "Get the annotated text of an annotation. The arg ANNOTATION-SERIALIZED must be a single
-annotation field got from a file dump of all annotated buffers,
-essentially what you get from:
+  "Get the annotated text of an annotation. The arg ANNOTATION-SERIALIZED
+ must be a single annotation field got from a file dump of all
+annotated buffers, essentially what you get from:
 \(annotate-annotations-from-dump (nth index (annotate-load-annotations))))."
   (and (> (length annotation-serialized) 3)
        (nth 3 annotation-serialized)))
