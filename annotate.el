@@ -468,6 +468,14 @@ position (so that it is unchanged after this function is called)."
   (= (overlay-start annotation)
      (overlay-end   annotation)))
 
+(cl-defun annotate-annotation-set-id (annotation &optional (id (annotate--generate-unique-id)))
+  "Set property id to ID for ANNOTATION."
+  (overlay-put annotation 'id id))
+
+(defun annotate-annotation-id (annotation)
+  "Get property id from ANNOTATION."
+  (overlay-get annotation 'id))
+
 (defun annotate-annotation-set-face (annotation face)
   "Set property face to FACE for ANNOTATION."
   (overlay-put annotation 'face face))
@@ -1651,7 +1659,7 @@ buffer is not on info-mode"
                                    (buffer-file-name (buffer-base-buffer))
                                    ""))))))
 
-(defun annotate-mac-address ()
+(defun annotate--mac-address ()
   (when-let* ((all-interfaces-names (mapcar #'car (network-interface-list)))
 	      (interface-name       (cl-find-if-not (lambda (a) (string= a "lo"))
 						    all-interfaces-names))
@@ -1664,7 +1672,7 @@ buffer is not on info-mode"
 		   (logior hw-address (ash byte shift))))
     hw-address))
 
-(defun annotate-generate-message-id ()
+(defun annotate--generate-unique-id ()
   "Generate an unique string identifier (note: implements time based  UUIDv1 (see: rfc9562)."
   (let* ((now        (+ (car (time-convert nil 10000000))
 			#x01b21dd213814000)) ; convert unix epoch to gregorian epoch
@@ -1673,7 +1681,7 @@ buffer is not on info-mode"
 	 (time-high  (logand #xfff (ash now -48)))
 	 (variant    #x02)
 	 (version    #x01)
-	 (node       (or (annotate-mac-address)
+	 (node       (or (annotate--mac-address)
 			 (random #xffffffffffff)))
 	 (clock      (logand #x3fff (random #xffff)))
 	 (uuid       #x00000000000000000000000000000000))
@@ -1708,7 +1716,7 @@ file."
        (nth 4 annotation-serialized)))
 
 (defun annotate-placement-policy-from-dump (annotation-serialized)
-  "Get the checksum field from an annotation list loaded from a
+  "Get the placement policy field from an annotation list loaded from a
 file."
   (and (> (length annotation-serialized) 4)
        (nth 5 annotation-serialized)))
@@ -1719,15 +1727,21 @@ file."
   (and (> (length annotation-serialized) 2)
        (nth 2 annotation-serialized)))
 
-(defun annotate-annotations-from-dump (annotation-serialized)
+(defun annotate-id-from-dump (annotation-serialized)
+  "Get the id field from an annotation list loaded from a
+file."
+  (and (> (length annotation-serialized) 6)
+       (nth 6 annotation-serialized)))
+
+(defun annotate-annotations-from-dump (record)
   "Get the annotations field from an annotation list loaded from a
 file."
-  (nth 1 annotation-serialized))
+  (cl-second record))
 
-(defun annotate-filename-from-dump (annotation-serialized)
+(defun annotate-filename-from-dump (record)
   "Get the filename field from an annotation list loaded from a
 file."
-  (cl-first annotation-serialized))
+  (cl-first record))
 
 (defun annotate-beginning-of-annotation (annotation-serialized)
   "Get the starting point of an annotation. The arg ANNOTATION-SERIALIZED must be a single
@@ -1966,13 +1980,15 @@ example:
                                                     (length annotate-highlight-faces)))
                                             dump-color-index
                                           nil))
-                     (position          (annotate-placement-policy-from-dump annotation)))
+                     (position          (annotate-placement-policy-from-dump annotation))
+		     (id                (annotate-id-from-dump annotation)))
                 (annotate-create-annotation start
                                             end
                                             annotation-string
                                             annotated-text
                                             color-index
-                                            position))))))
+                                            position
+					    id))))))
         (font-lock-flush)
         (when annotate-use-messages
           (message annotate-message-annotation-loaded))))))
@@ -2297,8 +2313,11 @@ must not be rendered."
   "Get the property for hiding the annotation text from OVERLAY."
   (overlay-get overlay 'hide-text))
 
-(defun annotate-create-annotation (start end annotation-text annotated-text
-                                         &optional color-index position)
+(cl-defun annotate-create-annotation (start end annotation-text annotated-text
+                                         &optional
+					 color-index
+					 position
+					 (annotation-id (annotate--generate-unique-id)))
   "Create a new annotation for selected region (from START to  END.
 
 Here the argument ANNOTATION-TEXT is the string that appears
@@ -2326,9 +2345,12 @@ COLOR-INDEX, if non-null (default nil), is used as index to address
 elements both in ANNOTATE-COLOR-INDEX-FROM-DUMP
 and ANNOTATE-COLOR-INDEX-FROM-DUMP to specify annotation appearance.
 
-Finally POSITION indicates the positioning policy for the annotation,
+POSITION indicates the positioning policy for the annotation,
 if null the value bound to ANNOTATE-ANNOTATION-POSITION-POLICY is
-used."
+used.
+
+ANNOTATION-ID is an unique identifier for th eannotation
+(by default is generated using `annotate--generate-unique-id'."
   (cl-labels ((face-annotation-shifting-point (position shifting-direction-function)
                 (when-let* ((annotation       (funcall shifting-direction-function
                                                        position))
@@ -2375,6 +2397,7 @@ used."
                                                           (elt annotate-annotation-text-faces
                                                                color-index)
                                                         (annotate--current-annotation-text-face))))
+				(annotate-annotation-set-id highlight annotation-id)
                                 (annotate-annotation-set-face highlight highlight-face)
                                 (annotate-annotation-set-annotation-text highlight annotation-text)
                                 (annotate-annotation-set-annotation-face highlight annotation-face)
@@ -2470,7 +2493,9 @@ used."
                                   end
                                   annotation-text
                                   annotated-text
-                                  color-index position))
+                                  color-index
+				  position
+				  annotation-id))
      (t
       (if (not (annotate-string-empty-p annotated-text))
           (let ((text-to-match (ignore-errors
@@ -2807,7 +2832,8 @@ The format is suitable for database dump."
                            (face        (annotate-annotation-face chain-first))
                            (color-index (cl-position-if (lambda (a) (cl-equalp face a))
                                                         annotate-highlight-faces))
-                           (position    (annotate-annotation-get-position annotation)))
+                           (position    (annotate-annotation-get-position annotation))
+			   (id          (annotate-annotation-id annotation)))
                       (when (not (cl-find-if (lambda (a)
                                                (eq (cl-first chain)
                                                    (cl-first a)))
@@ -2818,7 +2844,8 @@ The format is suitable for database dump."
                               (annotate-annotation-get-annotation-text annotation)
                               (buffer-substring-no-properties from to)
                               color-index
-                              position))))
+                              position
+			      id))))
                   all-annotations))))
 
 (defun annotate-info-root-dir-p (filename)
@@ -3133,20 +3160,21 @@ results can be filtered with a simple query language: see
           (local-set-key "q" (lambda ()
                                (interactive)
                                (kill-buffer annotate-summary-buffer-name)))
-          (dolist (annotation dump)
-            (let* ((all-annotations (annotate-annotations-from-dump annotation))
-                   (db-filename     (annotate-filename-from-dump annotation)))
+          (dolist (record dump)
+            (let* ((all-annotations (annotate-annotations-from-dump record))
+                   (db-filename     (annotate-filename-from-dump record)))
               (when (not (null all-annotations))
                 (insert (format (concat annotate-summary-list-prefix-file "%s\n\n")
                                 db-filename))
-                (dolist (annotation-field all-annotations)
+                (dolist (annotation-fields all-annotations)
                   (let* ((button-text      (format "%s"
-                                                   (annotate-annotation-string annotation-field)))
-                         (annotation-begin (annotate-beginning-of-annotation annotation-field))
-                         (annotation-end   (annotate-ending-of-annotation    annotation-field))
+                                                   (annotate-annotation-string annotation-fields)))
+                         (annotation-begin (annotate-beginning-of-annotation annotation-fields))
+                         (annotation-end   (annotate-ending-of-annotation    annotation-fields))
                          (snippet-text     (build-snippet db-filename
-                                                          annotation-begin
-                                                          annotation-end)))
+							  annotation-begin
+							  annotation-end)
+					   (annotate-id-from-dump annotation-fields)))
                     (insert-item-summary db-filename
                                          snippet-text
                                          button-text
