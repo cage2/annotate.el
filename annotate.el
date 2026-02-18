@@ -3173,8 +3173,7 @@ results can be filtered with a simple query language: see
                          (annotation-end   (annotate-ending-of-annotation    annotation-fields))
                          (snippet-text     (build-snippet db-filename
                                                           annotation-begin
-                                                          annotation-end)
-                                           (annotate-id-from-dump annotation-fields)))
+                                                          annotation-end)))
                     (insert-item-summary db-filename
                                          snippet-text
                                          button-text
