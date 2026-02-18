@@ -1651,6 +1651,46 @@ buffer is not on info-mode"
                                    (buffer-file-name (buffer-base-buffer))
                                    ""))))))
 
+(defun annotate-mac-address ()
+  (when-let* ((all-interfaces-names (mapcar #'car (network-interface-list)))
+	      (interface-name       (cl-find-if-not (lambda (a) (string= a "lo"))
+						    all-interfaces-names))
+	      (hw-address-vec       (cdr (cl-fourth (network-interface-info interface-name))))
+	      (hw-address           #x000000000000))
+    (cl-loop for byte across hw-address-vec
+	     for shift from 40 downto -10 by 8
+	     do
+	     (setf hw-address
+		   (logior hw-address (ash byte shift))))
+    hw-address))
+
+(defun annotate-generate-message-id ()
+  "Generate an unique string identifier (note: implements time based  UUIDv1 (see: rfc9562)."
+  (let* ((now        (+ (car (time-convert nil 10000000))
+			#x01b21dd213814000)) ; convert unix epoch to gregorian epoch
+	 (time-low   (logand #xffffffff now))
+	 (time-mid   (logand #xffff (ash now -32)))
+	 (time-high  (logand #xfff (ash now -48)))
+	 (variant    #x02)
+	 (version    #x01)
+	 (node       (or (annotate-mac-address)
+			 (random #xffffffffffff)))
+	 (clock      (logand #x3fff (random #xffff)))
+	 (uuid       #x00000000000000000000000000000000))
+    (setf uuid (logior uuid (ash time-low 96)))
+    (setf uuid (logior uuid (ash time-mid 80)))
+    (setf uuid (logior uuid (ash version 76)))
+    (setf uuid (logior uuid (ash time-high 64)))
+    (setf uuid (logior uuid (ash variant 62)))
+    (setf uuid (logior uuid (ash clock 48)))
+    (setf uuid (logior uuid node))
+    (format "%08x-%04x-%04x-%04x-%012x"
+	    (logand #xffffffff (ash uuid -96))
+	    (logand #x00ffff (ash uuid -80))
+	    (logand #x00ffff (ash uuid -64))
+	    (logand #x00ffff (ash uuid -48))
+	    (logand #xffffffffffff uuid))))
+
 (defun annotate-make-annotation-dump-entry (filename file-annotations checksum)
   "Make an annotation record: see `annotate-load-annotations'."
   (list filename
@@ -1662,7 +1702,7 @@ buffer is not on info-mode"
   (annotate-make-annotation-dump-entry filename file-annotations checksum))
 
 (defun annotate-color-index-from-dump (record)
-  "Get the checksum field from an annotation list loaded from a
+  "Get the color index from an annotation list loaded from a
 file."
   (and (> (length record) 3)
        (nth 4 record)))
@@ -1874,7 +1914,7 @@ annotations:
 
 finally annotation is:
 
-\(START END ANNOTATION-STRING ANNOTATED-TEXT COLOR-INDEX)
+\(START END ANNOTATION-STRING ANNOTATED-TEXT COLOR-INDEX POSITIONING-POLICY)
 
 START:              the buffer position where annotated text start
 END:                the buffer position where annotated text ends
