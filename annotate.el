@@ -1653,7 +1653,7 @@ buffer is not on info-mode"
     nil)
    (t
     (let ((visited-filename (when (buffer-file-name)
-			      (abbreviate-file-name (buffer-file-name)))))
+                              (abbreviate-file-name (buffer-file-name)))))
       (substring-no-properties (or (annotate-info-actual-filename)
                                    visited-filename
                                    (buffer-file-name (buffer-base-buffer))
@@ -1661,30 +1661,30 @@ buffer is not on info-mode"
 
 (defun annotate--mac-address ()
   (when-let* ((all-interfaces-names (mapcar #'car (network-interface-list)))
-	      (interface-name       (cl-find-if-not (lambda (a) (string= a "lo"))
-						    all-interfaces-names))
-	      (hw-address-vec       (cdr (cl-fourth (network-interface-info interface-name))))
-	      (hw-address           #x000000000000))
+              (interface-name       (cl-find-if-not (lambda (a) (string= a "lo"))
+                                                    all-interfaces-names))
+              (hw-address-vec       (cdr (cl-fourth (network-interface-info interface-name))))
+              (hw-address           #x000000000000))
     (cl-loop for byte across hw-address-vec
-	     for shift from 40 downto -10 by 8
-	     do
-	     (setf hw-address
-		   (logior hw-address (ash byte shift))))
+             for shift from 40 downto -10 by 8
+             do
+             (setf hw-address
+                   (logior hw-address (ash byte shift))))
     hw-address))
 
 (defun annotate--generate-unique-id ()
   "Generate an unique string identifier (note: implements time based  UUIDv1 (see: rfc9562)."
   (let* ((now        (+ (car (time-convert nil 10000000))
-			#x01b21dd213814000)) ; convert unix epoch to gregorian epoch
-	 (time-low   (logand #xffffffff now))
-	 (time-mid   (logand #xffff (ash now -32)))
-	 (time-high  (logand #xfff (ash now -48)))
-	 (variant    #x02)
-	 (version    #x01)
-	 (node       (or (annotate--mac-address)
-			 (random #xffffffffffff)))
-	 (clock      (logand #x3fff (random #xffff)))
-	 (uuid       #x00000000000000000000000000000000))
+                        #x01b21dd213814000)) ; convert unix epoch to gregorian epoch
+         (time-low   (logand #xffffffff now))
+         (time-mid   (logand #xffff (ash now -32)))
+         (time-high  (logand #xfff (ash now -48)))
+         (variant    #x02)
+         (version    #x01)
+         (node       (or (annotate--mac-address)
+                         (random #xffffffffffff)))
+         (clock      (logand #x3fff (random #xffff)))
+         (uuid       #x00000000000000000000000000000000))
     (setf uuid (logior uuid (ash time-low 96)))
     (setf uuid (logior uuid (ash time-mid 80)))
     (setf uuid (logior uuid (ash version 76)))
@@ -1693,11 +1693,11 @@ buffer is not on info-mode"
     (setf uuid (logior uuid (ash clock 48)))
     (setf uuid (logior uuid node))
     (format "%08x-%04x-%04x-%04x-%012x"
-	    (logand #xffffffff (ash uuid -96))
-	    (logand #x00ffff (ash uuid -80))
-	    (logand #x00ffff (ash uuid -64))
-	    (logand #x00ffff (ash uuid -48))
-	    (logand #xffffffffffff uuid))))
+            (logand #xffffffff (ash uuid -96))
+            (logand #x00ffff (ash uuid -80))
+            (logand #x00ffff (ash uuid -64))
+            (logand #x00ffff (ash uuid -48))
+            (logand #xffffffffffff uuid))))
 
 (defun annotate-make-annotation-dump-entry (filename file-annotations checksum)
   "Make an annotation record: see `annotate-load-annotations'."
@@ -1981,14 +1981,14 @@ example:
                                             dump-color-index
                                           nil))
                      (position          (annotate-placement-policy-from-dump annotation))
-		     (id                (annotate-id-from-dump annotation)))
+                     (id                (annotate-id-from-dump annotation)))
                 (annotate-create-annotation start
                                             end
                                             annotation-string
                                             annotated-text
                                             color-index
                                             position
-					    id))))))
+                                            id))))))
         (font-lock-flush)
         (when annotate-use-messages
           (message annotate-message-annotation-loaded))))))
@@ -2050,7 +2050,7 @@ annotation."
         data)
     (with-temp-file annotate-file
       (cl-flet ((%make-record (annotation)
-		  (let ((full-filename (annotate-filename-from-dump    annotation))
+                  (let ((full-filename (annotate-filename-from-dump    annotation))
                         (annotations   (annotate-annotations-from-dump annotation))
                         (file-checksum (annotate-checksum-from-dump    annotation)))
                     (annotate-make-record (abbreviate-file-name full-filename)
@@ -2058,7 +2058,7 @@ annotation."
                                           file-checksum))))
       (let* ((print-length nil)
              (actual-data (mapcar #'%make-record data)))
-	(prin1 actual-data (current-buffer))))))
+        (prin1 actual-data (current-buffer))))))
    ((annotate-file-exists-p annotate-file)
     (let* ((confirm-message    "Delete annotations database file %S? ")
            (delete-confirmed-p (or (not annotate-database-confirm-deletion)
@@ -2315,9 +2315,9 @@ must not be rendered."
 
 (cl-defun annotate-create-annotation (start end annotation-text annotated-text
                                          &optional
-					 color-index
-					 position
-					 (annotation-id (annotate--generate-unique-id)))
+                                         color-index
+                                         position
+                                         (annotation-id (annotate--generate-unique-id)))
   "Create a new annotation for selected region (from START to  END.
 
 Here the argument ANNOTATION-TEXT is the string that appears
@@ -2397,7 +2397,7 @@ ANNOTATION-ID is an unique identifier for th eannotation
                                                           (elt annotate-annotation-text-faces
                                                                color-index)
                                                         (annotate--current-annotation-text-face))))
-				(annotate-annotation-set-id highlight annotation-id)
+                                (annotate-annotation-set-id highlight annotation-id)
                                 (annotate-annotation-set-face highlight highlight-face)
                                 (annotate-annotation-set-annotation-text highlight annotation-text)
                                 (annotate-annotation-set-annotation-face highlight annotation-face)
@@ -2494,8 +2494,8 @@ ANNOTATION-ID is an unique identifier for th eannotation
                                   annotation-text
                                   annotated-text
                                   color-index
-				  position
-				  annotation-id))
+                                  position
+                                  annotation-id))
      (t
       (if (not (annotate-string-empty-p annotated-text))
           (let ((text-to-match (ignore-errors
@@ -2833,7 +2833,7 @@ The format is suitable for database dump."
                            (color-index (cl-position-if (lambda (a) (cl-equalp face a))
                                                         annotate-highlight-faces))
                            (position    (annotate-annotation-get-position annotation))
-			   (id          (annotate-annotation-id annotation)))
+                           (id          (annotate-annotation-id annotation)))
                       (when (not (cl-find-if (lambda (a)
                                                (eq (cl-first chain)
                                                    (cl-first a)))
@@ -2845,7 +2845,7 @@ The format is suitable for database dump."
                               (buffer-substring-no-properties from to)
                               color-index
                               position
-			      id))))
+                              id))))
                   all-annotations))))
 
 (defun annotate-info-root-dir-p (filename)
@@ -3172,9 +3172,9 @@ results can be filtered with a simple query language: see
                          (annotation-begin (annotate-beginning-of-annotation annotation-fields))
                          (annotation-end   (annotate-ending-of-annotation    annotation-fields))
                          (snippet-text     (build-snippet db-filename
-							  annotation-begin
-							  annotation-end)
-					   (annotate-id-from-dump annotation-fields)))
+                                                          annotation-begin
+                                                          annotation-end)
+                                           (annotate-id-from-dump annotation-fields)))
                     (insert-item-summary db-filename
                                          snippet-text
                                          button-text
