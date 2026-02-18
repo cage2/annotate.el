@@ -1701,62 +1701,62 @@ buffer is not on info-mode"
   "Make an annotation record: see `annotate-load-annotations'."
   (annotate-make-annotation-dump-entry filename file-annotations checksum))
 
-(defun annotate-color-index-from-dump (record)
+(defun annotate-color-index-from-dump (annotation-serialized)
   "Get the color index from an annotation list loaded from a
 file."
-  (and (> (length record) 3)
-       (nth 4 record)))
+  (and (> (length annotation-serialized) 3)
+       (nth 4 annotation-serialized)))
 
-(defun annotate-placement-policy-from-dump (record)
+(defun annotate-placement-policy-from-dump (annotation-serialized)
   "Get the checksum field from an annotation list loaded from a
 file."
-  (and (> (length record) 4)
-       (nth 5 record)))
+  (and (> (length annotation-serialized) 4)
+       (nth 5 annotation-serialized)))
 
-(defun annotate-checksum-from-dump (record)
+(defun annotate-checksum-from-dump (annotation-serialized)
   "Get the checksum field from an annotation list loaded from a
 file."
-  (and (> (length record) 2)
-       (nth 2 record)))
+  (and (> (length annotation-serialized) 2)
+       (nth 2 annotation-serialized)))
 
-(defun annotate-annotations-from-dump (record)
+(defun annotate-annotations-from-dump (annotation-serialized)
   "Get the annotations field from an annotation list loaded from a
 file."
-  (nth 1 record))
+  (nth 1 annotation-serialized))
 
-(defun annotate-filename-from-dump (record)
+(defun annotate-filename-from-dump (annotation-serialized)
   "Get the filename field from an annotation list loaded from a
 file."
-  (cl-first record))
+  (cl-first annotation-serialized))
 
-(defun annotate-beginning-of-annotation (annotation)
-  "Get the starting point of an annotation. The arg ANNOTATION must be a single
+(defun annotate-beginning-of-annotation (annotation-serialized)
+  "Get the starting point of an annotation. The arg ANNOTATION-SERIALIZED must be a single
 annotation field got from a file dump of all annotated buffers,
 essentially what you get from:
 \(annotate-annotations-from-dump (nth index (annotate-load-annotations))))."
-  (cl-first annotation))
+  (cl-first annotation-serialized))
 
-(defun annotate-ending-of-annotation (annotation)
-  "Get the ending point of an annotation. The arg ANNOTATION must be a single
+(defun annotate-ending-of-annotation (annotation-serialized)
+  "Get the ending point of an annotation. The arg ANNOTATION-SERIALIZED must be a single
 annotation field got from a file dump of all annotated buffers,
 essentially what you get from:
 \(annotate-annotations-from-dump (nth index (annotate-load-annotations))))."
-  (cl-second annotation))
+  (cl-second annotation-serialized))
 
-(defun annotate--interval-left-limit (a)
+(defun annotate--interval-left-limit (annotation-serialized)
   "Given an annotation record A returns the left limit of the annotated text."
-  (cl-first a))
+  (cl-first annotation-serialized))
 
-(defun annotate--interval-right-limit (a)
+(defun annotate--interval-right-limit (annotation-serialized)
   "Given an annotation record A returns the right limit of the annotated text."
-  (cl-second a))
+  (cl-second annotation-serialized))
 
 (defun annotate--make-interval (left-limit right-limit)
   "Make an interval from LEFT-LIMIT and RIGHT-LIMIT."
   (list left-limit right-limit))
 
-(defun annotate-annotation-interval (annotation)
-  "Return the limits where ANNOTATION is applied.
+(defun annotate-annotation-interval (annotation-serialized)
+  "Return the limits where ANNOTATION-SERIALIZED is applied.
 The limit is a list of two numbers (LEFT RIGHT) representing of the portion
 of the buffer where this annotation is applied.
 Note that this function returns the character interval
@@ -1768,23 +1768,23 @@ yyyyyyyy ggg
 In other terms the interval in the database is a closed interval while
 the interval that this function return is closed on the left and open on
 the right side."
-  (annotate--make-interval (annotate-beginning-of-annotation annotation)
-                           (1- (annotate-ending-of-annotation annotation))))
+  (annotate--make-interval (annotate-beginning-of-annotation annotation-serialized)
+                           (1- (annotate-ending-of-annotation annotation-serialized))))
 
-(defun annotate-annotation-string (annotation)
-  "Get the text of an annotation. The arg ANNOTATION must be a single
+(defun annotate-annotation-string (annotation-serialized)
+  "Get the text of an annotation. The arg ANNOTATION-SERIALIZED must be a single
 annotation field got from a file dump of all annotated buffers,
 essentially what you get from:
 \(annotate-annotations-from-dump (nth index (annotate-load-annotations))))."
-  (nth 2 annotation))
+  (nth 2 annotation-serialized))
 
-(defun annotate-annotated-text (annotation)
-  "Get the annotated text of an annotation. The arg ANNOTATION must be a single
+(defun annotate-annotated-text (annotation-serialized)
+  "Get the annotated text of an annotation. The arg ANNOTATION-SERIALIZED must be a single
 annotation field got from a file dump of all annotated buffers,
 essentially what you get from:
 \(annotate-annotations-from-dump (nth index (annotate-load-annotations))))."
-  (and (> (length annotation) 3)
-       (nth 3 annotation)))
+  (and (> (length annotation-serialized) 3)
+       (nth 3 annotation-serialized)))
 
 (defun annotate-save-all-annotated-buffers ()
   "Save the annotations for all buffer where `annotate-mode' is active."
