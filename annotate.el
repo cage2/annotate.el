@@ -370,6 +370,16 @@ summary window because does not exist or is in an unsupported
 (defconst annotate-message-annotations-not-found "No annotations found."
   "The message shown when no annotations has been loaded from the database.")
 
+(defconst annotate-thread-delete-button-label "[delete]"
+  "The label for the button, in thread window, to delete an annotation.")
+
+(defconst annotate-thread-branch-string
+  (concat "├▶")
+
+(defconst annotate-thread-leaf-string "╰▶")
+
+(defconst annotate-thread-trunk-string "│")
+
 ;;;; buffer locals variables
 
 (defvar-local annotate-echo-annotation-timer nil
@@ -482,9 +492,14 @@ position (so that it is unchanged after this function is called)."
   "Set property reply-to IN-REPLY-TO-ID for ANNOTATION."
   (overlay-put annotation 'reply-to in-reply-to-id))
 
-(defun annotate-annotation-reply-to (annotation)
-  "Get property reply-to from ANNOTATION."
-  (overlay-get annotation 'reply-to))
+(cl-defgeneric annotate-annotation-reply-to (object)
+  "Get the id of object OBJECT is the reply of")
+
+(cl-defmethod annotate-annotation-reply-to ((object overlay))
+  (overlay-get object 'reply-to))
+
+(cl-defmethod annotate-annotation-reply-to ((object list))
+  (annotate-reply-to-from-dump object))
 
 (defun annotate-annotation-reply-p (annotation)
   (annotate-annotation-reply-to annotation))
@@ -2778,7 +2793,7 @@ OBJECT (a string)."
 (cl-defgeneric annotate-get-children-from-dump (annotate-db object))
 
 (cl-defmethod annotate-get-children-from-dump (annotate-db (object list))
-  (let ((id        (annotate-id-from-dump object)))
+  (let ((id (annotate-id-from-dump object)))
     (annotate-get-children-from-dump annotate-db id)))
 
 (cl-defmethod annotate-get-children-from-dump (annotate-db (object string))
@@ -2852,14 +2867,6 @@ and, if exist, recursively all its chidren."
                       (annotate-remove-annotation-thread filtered-db
                                                          child)))
     filtered-db))
-
-(defun test-delete-by-id ()
-  (let ((annotations-db (annotate-load-annotation-data)))
-    (setf annotations-db
-          (annotate-remove-annotation-thread annotations-db
-                                             "cfcd0641-116f-11f1-9393-00e04c36596a"))
-    (annotate-db-purge* annotations-db)
-    (test-tree)))
 
 (cl-defun annotate-delete-annotation (&optional (point (point)))
   "Command to delete an annotation, POINT is the buffer
@@ -3218,12 +3225,12 @@ pressed."
          (old-annotation       (button-get button 'text))
          (new-annotation-text  (read-from-minibuffer annotate-annotation-prompt old-annotation)))
     (when (not (annotate-string-empty-p new-annotation-text))
-      (let ((replaced-annotation-db (annotate-db-replace-annotation db
+      (let ((replaced-annotations-db (annotate-db-replace-annotation db
                                                                     filename
                                                                     annotation-beginning
                                                                     annotation-ending
                                                                     new-annotation-text)))
-        (annotate-dump-annotation-data replaced-annotation-db)
+        (annotate-dump-annotation-data replaced-annotations-db)
         (annotate-update-visited-buffer-maybe filename)
         (annotate-show-annotation-summary query nil nil)))))
 
@@ -4096,53 +4103,77 @@ their personal database."
   (lambda (annotation)
     (annotate-get-children-from-dump annotate-db annotation)))
 
-(defun annotate-annotation-leaf-p (annotation annotation-db)
-  (null (funcall (annotate-get-tree-children-clsr annotation-db)
+(defun annotate-annotation-leaf-p (annotation annotations-db)
+  (null (funcall (annotate-get-tree-children-clsr annotations-db)
                  annotation)))
 
-(defun annotate-annotation-leaf-p-clsr (annotation-db)
+(defun annotate-annotation-leaf-p-clsr (annotations-db)
   (lambda (annotation)
-    (annotate-annotation-leaf-p annotation annotation-db)))
+    (annotate-annotation-leaf-p annotation annotations-db)))
 
-(defun annotate-annotation-root-p (annotation)
-  (null (annotate-reply-to-from-dump annotation)))
+(cl-defgeneric annotate-annotation-root-p (object))
+
+(cl-defmethod annotate-annotation-root-p ((object list))
+  (null (annotate-reply-to-from-dump object)))
+
+(cl-defmethod annotate-annotation-root-p ((object overlay))
+  (null (annotate-annotation-reply-to object)))
+
+(cl-defgeneric annotate-annotation-find-root (annotations-db object)
+  "Find the root annotation of the thread where OBJECT belongs")
+
+(cl-defmethod annotate-annotation-find-root (annotations-db object)
+  (if (annotate-annotation-root-p object)
+      (annotate--find-annotation annotations-db object)
+    (let* ((parent-id (annotate-annotation-reply-to object))
+           (parent    (annotate--find-annotation annotations-db parent-id)))
+      (annotate-annotation-find-root annotations-db parent))))
 
 (defun annotate-get-tree-data (annotation)
   (annotate-annotation-string annotation))
 
 (cl-defun annotate--print-tree-data (node data format indent last-child &rest args)
-  (let* ((lines (annotate--split-lines data))
-         (rest-lines (cl-rest lines)))
-    (if rest-lines
-        (insert (apply #'format
-                       (append (list (concat format "%s\n"))
-                               (append (list indent)
-                                       args
-                                       (list (cl-first lines))))))
-      (insert (apply #'format
-                     (append (list (concat format "%s "))
-                             (append (list indent)
-                                     args
-                                     (list (cl-first lines)))))))
-    (cl-loop for line in rest-lines
-             for count from 0
-             do (if (= count
-                       (1- (length rest-lines)))
-                    (insert (format "%s%s%s "
-                                    indent
-                                    (if last-child
-                                        "  "
-                                      "│ ")
-                                    line))
-                  (insert (format "%s%s%s\n"
-                                  indent
-                                  (if last-child
-                                      "  "
-                                    "│ ")
-                                  line)))))
-  (insert "← ")
-  (insert-button "[delete]")
-  (insert "\n"))
+  (cl-flet ((insert-first-line (lines format-control)
+              (insert (apply #'format
+                             (append (list (concat format format-control))
+                                     (append (list indent)
+                                             args
+                                             (list (cl-first lines)))))))
+            (insert-rest-line (line format-control)
+              (insert (format format-control
+                              indent
+                              (if last-child
+                                  "  "
+                                (concat annotate-thread-trunk-string " "))
+                              line))))
+    (let* ((lines (annotate--split-lines data))
+           (rest-lines (cl-rest lines)))
+      (if rest-lines
+          (insert-first-line lines "%s\n")
+        (insert-first-line lines "%s "))
+      (cl-loop for line in rest-lines
+               for count from 0
+               do (if (= count
+                         (1- (length rest-lines)))
+                      (insert-rest-line line "%s%s%s ")
+                    (insert-rest-line line "%s%s%s\n"))))
+    (when (not (annotate-annotation-root-p node))
+      (insert "← ")
+      (insert-button annotate-thread-delete-button-label
+                     'action 'annotate-thread-delete-button-pressed
+                     'annotation-bound node))
+    (insert "\n")))
+
+(defun annotate-thread-delete-button-pressed (button)
+  "Callback called when an delete button in the thread window is activated."
+  (let* ((annotation (button-get button 'annotation-bound))
+         (annotations-db (annotate-load-annotation-data))
+         (thread-root (annotate-annotation-find-root annotations-db annotation))
+         (new-db      (annotate-remove-annotation-thread annotations-db annotation)))
+    (annotate-dump-annotation-data new-db) ; save the new database with thread removed
+    (annotate--show-annotation-thread thread-root :save-annotations t)))
+
+
 
 (cl-defun annotate-print-tree (node
                                get-children-fn
@@ -4159,9 +4190,18 @@ their personal database."
      ((annotate-annotation-root-p node)
       (funcall print-data-fn node data "%s" "" last-child))
      (last-child
-      (funcall print-data-fn node data "%s╰▶" indent last-child))
+      (funcall print-data-fn
+               node
+               data
+               (concat "%s" annotate-thread-leaf-string)
+               indent
+               last-child))
      (t
-      (funcall print-data-fn node data "%s├▶" indent last-child)))
+      (funcall print-data-fn
+               node
+               data
+               (concat "%s" annotate-thread-branch-string)
+               indent last-child)))
     (cond
      ((null children)
       (setf indent (concat indent "  ")))
