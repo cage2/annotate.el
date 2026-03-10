@@ -373,8 +373,10 @@ summary window because does not exist or is in an unsupported
 (defconst annotate-thread-delete-button-label "[delete]"
   "The label for the button, in thread window, to delete an annotation.")
 
-(defconst annotate-thread-branch-string
-  (concat "├▶")
+(defconst annotate-thread-reply-button-label "[reply]"
+  "The label for the button, in thread window, to delete an annotation.")
+
+(defconst annotate-thread-branch-string "├▶")
 
 (defconst annotate-thread-leaf-string "╰▶")
 
@@ -484,9 +486,15 @@ position (so that it is unchanged after this function is called)."
   "Set property id to ID for ANNOTATION."
   (overlay-put annotation 'id id))
 
-(defun annotate-annotation-id (annotation)
-  "Get property id from ANNOTATION."
-  (overlay-get annotation 'id))
+(cl-defgeneric annotate-annotation-id (object))
+
+(cl-defmethod annotate-annotation-id ((object overlay))
+  "Get property id from annotation overlay: OBJECT."
+  (overlay-get object 'id))
+
+(cl-defmethod annotate-annotation-id ((object list))
+  "Get property id from annotation serialized: OBJECT."
+  (annotate-id-from-dump object))
 
 (cl-defun annotate-annotation-set-reply-to (annotation in-reply-to-id)
   "Set property reply-to IN-REPLY-TO-ID for ANNOTATION."
@@ -815,21 +823,25 @@ specified by FROM and TO."
                                                   t)))
              finally (return results))))
 
-(defun annotate--make-reply-to (parent-annotation reply-text)
+(defun annotate--make-reply-to (parent-annotation reply-author reply-body)
   "Attach a reply to the annotation PARENT-ANNOTATION"
-  (annotate-ensure-annotation (parent-annotation)
-    (let ((parent-id (annotate-annotation-id parent-annotation)))
-      (annotate--make-annotation-for-record nil
-                                            nil
-                                            reply-text
-                                            nil
-                                            nil
-                                            nil
-                                            (annotate--generate-unique-id)
-                                            parent-id))))
+  (let ((parent-id  (annotate-annotation-id parent-annotation))
+        (reply-text (format "from: %s\n%s"
+                            reply-author
+                            reply-body)))
+    (annotate--make-annotation-for-record nil
+                                          nil
+                                          reply-text
+                                          nil
+                                          nil
+                                          nil
+                                          (annotate--generate-unique-id)
+                                          parent-id)))
 
-(defun annotate--make-reply-annotation (parent-annotation author body)
-  (let ((annotation-record (annotate--make-reply-to parent reply-text)))
+(defun annotate--make-reply-annotation (parent-annotation author reply-body)
+  (let ((annotation-record (annotate--make-reply-to parent-annotation
+                                                    author
+                                                    reply-body)))
     (annotate-save-annotations :replace t)
     (annotate-save-annotations :annotations-to-save (list annotation-record)
                                :replace nil)))
@@ -2790,6 +2802,23 @@ OBJECT (a string)."
                                      filtered-annotations
                                      (annotate-checksum-from-dump record))))))
 
+(defun annotate--attach-annotation-to-dump (annotate-db serialized-annotation)
+  (let ((parent-id  (annotate-annotation-reply-to serialized-annotation)))
+    (cl-loop for record in annotate-db
+             collect
+             (let* ((annotations (annotate-annotations-from-dump record))
+                    (parent (cl-find-if
+                             (lambda (a)
+                               (annotate-annotation-id= parent-id
+                                                        (annotate-id-from-dump a)))
+                             annotations)))
+               (if parent
+                   (annotate-make-record (annotate-filename-from-dump record)
+                                         (push serialized-annotation
+                                               annotations)
+                                         (annotate-checksum-from-dump record))
+                 record)))))
+
 (cl-defgeneric annotate-get-children-from-dump (annotate-db object))
 
 (cl-defmethod annotate-get-children-from-dump (annotate-db (object list))
@@ -4162,10 +4191,13 @@ their personal database."
       (insert-button annotate-thread-delete-button-label
                      'action 'annotate-thread-delete-button-pressed
                      'annotation-bound node))
+    (insert-button annotate-thread-reply-button-label
+                   'action 'annotate-thread-reply-button-pressed
+                   'annotation-bound node)
     (insert "\n")))
 
 (defun annotate-thread-delete-button-pressed (button)
-  "Callback called when an delete button in the thread window is activated."
+  "Callback called when a delete button in the thread window is activated."
   (let* ((annotation (button-get button 'annotation-bound))
          (annotations-db (annotate-load-annotation-data))
          (thread-root (annotate-annotation-find-root annotations-db annotation))
@@ -4173,7 +4205,21 @@ their personal database."
     (annotate-dump-annotation-data new-db) ; save the new database with thread removed
     (annotate--show-annotation-thread thread-root :save-annotations t)))
 
-
+(defun annotate-thread-reply-button-pressed (button)
+  "Callback called when a reply button in the thread window is activated."
+  (let* ((annotation (button-get button 'annotation-bound))
+         (reply-author (read-from-minibuffer "Author: "
+                                             (user-login-name)))
+         (reply-body   (read-from-minibuffer annotate-annotation-prompt))
+         (reply-serialized (annotate--make-reply-to annotation
+                                                    reply-author
+                                                    reply-body)))
+    (let* ((annotations-db (annotate-load-annotation-data))
+           (thread-root (annotate-annotation-find-root annotations-db annotation))
+           (new-db      (annotate--attach-annotation-to-dump annotations-db
+                                                             reply-serialized)))
+      (annotate-dump-annotation-data new-db)
+      (annotate--show-annotation-thread thread-root :save-annotations t))))
 
 (cl-defun annotate-print-tree (node
                                get-children-fn
