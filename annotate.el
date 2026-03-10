@@ -3227,8 +3227,13 @@ pressed."
   (let* ((filename        (button-get button 'file))
          (beginning       (button-get button 'beginning))
          (ending          (button-get button 'ending))
-         (db              (annotate-load-annotation-data t))
-         (filtered        (annotate-db-remove-annotation db filename beginning ending)))
+         (annotations-db  (annotate-load-annotation-data t))
+         (annotation      (button-get button 'annotation-bound))
+         (no-thread-db    (annotate-remove-annotation-thread annotations-db annotation))
+         (filtered        (annotate-db-remove-annotation no-thread-db
+                                                         filename
+                                                         beginning
+                                                         ending)))
     (annotate-dump-annotation-data filtered) ; save the new database with entry removed
     (cl-labels ((redraw-summary-window () ; update the summary window
                   (with-current-buffer annotate-summary-buffer-name
@@ -3317,6 +3322,7 @@ results can be filtered with a simple query language: see
                                     button-text
                                     annotation-beginning
                                     annotation-ending
+                                    serialized-annotation
                                     filter-query)
                 (insert annotate-summary-list-prefix-snippet)
                 (insert (wrap (ellipsize snippet-text
@@ -3339,6 +3345,7 @@ results can be filtered with a simple query language: see
                                    'file       filename
                                    'beginning  annotation-beginning
                                    'ending     annotation-ending
+                                   'annotation-bound serialized-annotation
                                    'action
                                    'annotate-summary-delete-annotation-button-pressed
                                    'type
@@ -3452,6 +3459,7 @@ results can be filtered with a simple query language: see
                                          button-text
                                          annotation-begin
                                          annotation-end
+                                         annotation-fields
                                          filter-query))))))
           (read-only-mode 1))))))
 
