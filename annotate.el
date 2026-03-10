@@ -370,10 +370,10 @@ summary window because does not exist or is in an unsupported
 (defconst annotate-message-annotations-not-found "No annotations found."
   "The message shown when no annotations has been loaded from the database.")
 
-(defconst annotate-thread-delete-button-label "[delete]"
+(defconst annotate-thread-delete-button-label "delete"
   "The label for the button, in thread window, to delete an annotation.")
 
-(defconst annotate-thread-reply-button-label "[reply]"
+(defconst annotate-thread-reply-button-label "reply"
   "The label for the button, in thread window, to delete an annotation.")
 
 (defconst annotate-thread-branch-string "├▶")
@@ -852,7 +852,7 @@ specified by FROM and TO."
 (defun annotate-reply-to ()
   "Reply to the annotation under cursor, if any"
   (interactive)
-  (when-let* ((chain        (annotate-chain-at (pos)))
+  (when-let* ((chain        (annotate-chain-at (point)))
               (parent       (annotate--annotation-with-reply chain))
               (reply-author (read-from-minibuffer "Author: "
                                                   (user-login-name)))
@@ -4195,13 +4195,16 @@ their personal database."
                       (insert-rest-line line "%s%s%s ")
                     (insert-rest-line line "%s%s%s\n"))))
     (when (not (annotate-annotation-root-p node))
-      (insert "← ")
+      (insert "← [")
       (insert-button annotate-thread-delete-button-label
                      'action 'annotate-thread-delete-button-pressed
-                     'annotation-bound node))
+                     'annotation-bound node)
+      (insert "] "))
+    (insert "[")
     (insert-button annotate-thread-reply-button-label
                    'action 'annotate-thread-reply-button-pressed
                    'annotation-bound node)
+    (insert "]")
     (insert "\n")))
 
 (defun annotate-thread-delete-button-pressed (button)
@@ -4257,7 +4260,8 @@ their personal database."
                (concat "%s" annotate-thread-branch-string)
                indent last-child)))
     (cond
-     ((null children)
+     ((or (null children)
+          last-child)
       (setf indent (concat indent "  ")))
      ((not (annotate-annotation-root-p node))
       (setf indent (concat indent "│ "))))
@@ -4287,14 +4291,13 @@ their personal database."
                                                 (annotate-annotation-leaf-p-clsr data)
                                                 #'annotate-annotation-root-p))))))
 
-(cl-defmacro annotate-with-annotations-outline-window (&body body)
+(cl-defmacro annotate-with-annotations-window (&body body)
  `(with-current-buffer-window
       annotate-summary-buffer-name nil nil
     (progn
       (read-only-mode 0)
       (display-buffer annotate-summary-buffer-name)
       (select-window (get-buffer-window annotate-summary-buffer-name t))
-      (outline-mode)
       (use-local-map nil)
       (local-set-key "q" (lambda ()
                            (interactive)
@@ -4312,7 +4315,7 @@ their personal database."
           (message "The annotation database is empty"))
       (when-let ((annotation-serialized (annotate--find-annotation annotations-db
                                                                    annotation)))
-        (annotate-with-annotations-outline-window
+        (annotate-with-annotations-window
          (let ((annotated-text  (annotate-annotated-text annotation-serialized))
                (children-fn     (annotate-get-tree-children-clsr annotations-db)))
            (insert "** " annotated-text "\n\n")
