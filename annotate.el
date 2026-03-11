@@ -382,6 +382,22 @@ summary window because does not exist or is in an unsupported
 
 (defconst annotate-thread-trunk-string "│")
 
+(defcustom annotate-thread-header-face '(:foreground "red" :height 1.5)
+  "Face for header text (the annotated text) in the thread window"
+  :type '(repeat (plist)))
+
+(defcustom annotate-thread-author-face '(:weight bold)
+  "Face for author field in the thread window"
+  :type '(repeat (plist)))
+
+(defcustom annotate-thread-tree-arrow-face '(:foreground "purple")
+  "Face for arrow in the tree of a thread window"
+  :type '(repeat (plist)))
+
+(defcustom annotate-thread-tree-face '(:foreground "green")
+  "Face for arrow in the tree of a thread window"
+  :type '(repeat (plist)))
+
 ;;;; buffer locals variables
 
 (defvar-local annotate-echo-annotation-timer nil
@@ -4307,24 +4323,33 @@ their personal database."
 
 (cl-defun annotate--show-annotation-thread (annotation &key (save-annotations nil))
   "Show a buffer with the annotation thread that has ANNOTATION' as root node."
-  (when save-annotations
-    (annotate-save-all-annotated-buffers))
-  (let ((annotations-db (annotate-load-annotation-data t)))
-    (if (annotate--db-empty-p annotations-db)
-        (when annotate-use-messages
-          (message "The annotation database is empty"))
-      (when-let ((annotation-serialized (annotate--find-annotation annotations-db
-                                                                   annotation)))
-        (annotate-with-annotations-window
-         (let ((annotated-text  (annotate-annotated-text annotation-serialized))
-               (children-fn     (annotate-get-tree-children-clsr annotations-db)))
-           (insert "** " annotated-text "\n\n")
-           (annotate-print-tree (annotate--find-annotation annotations-db annotation)
-                                children-fn
-                                #'annotate-get-tree-data
-                                (annotate-annotation-leaf-p-clsr annotations-db)
-                                #'annotate-annotation-root-p
-                                #'annotate--print-tree-data)))))))
+  (cl-flet ((set-font-lock-mode ()
+              (font-lock-add-keywords
+               nil
+               '(("from:.+$" (0 `(face ,annotate-thread-author-face) append))
+                 ("^\\*\\*.+$" (0  `(face ,annotate-thread-header-face)))
+                 ("▶" (0 `(face ,annotate-thread-tree-arrow-face) append))
+                 ("├\\|│\\|╰" (0 `(face ,annotate-thread-tree-face) append))))))
+    (when save-annotations
+      (annotate-save-all-annotated-buffers))
+    (let ((annotations-db (annotate-load-annotation-data t)))
+      (if (annotate--db-empty-p annotations-db)
+          (when annotate-use-messages
+            (message "The annotation database is empty"))
+        (when-let ((annotation-serialized (annotate--find-annotation annotations-db
+                                                                     annotation)))
+          (annotate-with-annotations-window
+           (set-font-lock-mode)
+           (let ((annotated-text  (annotate-annotated-text annotation-serialized))
+                 (children-fn     (annotate-get-tree-children-clsr annotations-db)))
+             (insert "** " annotated-text "\n\n")
+             (annotate-print-tree (annotate--find-annotation annotations-db annotation)
+                                  children-fn
+                                  #'annotate-get-tree-data
+                                  (annotate-annotation-leaf-p-clsr annotations-db)
+                                  #'annotate-annotation-root-p
+                                  #'annotate--print-tree-data)
+             (font-lock-fontify-buffer))))))))
 
 (defun annotate-show-thread-at-point ()
   "Show a buffer with the annotation thread for the annotation under point."
