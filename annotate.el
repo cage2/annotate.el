@@ -382,7 +382,9 @@ summary window because does not exist or is in an unsupported
 
 (defconst annotate-thread-trunk-string "│")
 
-(defcustom annotate-thread-header-face '(:foreground "red" :height 1.5)
+(defconst annotate-thread-action-prefix-string "←")
+
+(defcustom annotate-thread-header-face '(:foreground "#EEF192" :height 1.5)
   "Face for header text (the annotated text) in the thread window"
   :type '(repeat (plist)))
 
@@ -396,6 +398,10 @@ summary window because does not exist or is in an unsupported
 
 (defcustom annotate-thread-tree-face '(:foreground "green")
   "Face for arrow in the tree of a thread window"
+  :type '(repeat (plist)))
+
+(defcustom annotate-thread-action-prefix-face '(:foreground "#EEF192")
+  "Face for arrow that prefixes actions button in thread window"
   :type '(repeat (plist)))
 
 ;;;; buffer locals variables
@@ -4211,7 +4217,7 @@ their personal database."
                       (insert-rest-line line "%s%s%s ")
                     (insert-rest-line line "%s%s%s\n"))))
     (when (not (annotate-annotation-root-p node))
-      (insert "← [")
+      (insert annotate-thread-action-prefix-string " [")
       (insert-button annotate-thread-delete-button-label
                      'action 'annotate-thread-delete-button-pressed
                      'annotation-bound node)
@@ -4293,20 +4299,6 @@ their personal database."
                                      :last-child (= count-children
                                                     (1- (length children)))))))
 
-(defun test-tree ()
-  (let* ((data (annotate-load-annotation-data))
-         (children-fn (annotate-get-tree-children-clsr data)))
-    ;;(message "data\n %S\n" data)
-    (with-current-buffer "test-ann.txt"
-      (cl-loop for record in data do
-               (cl-loop for annotation in (annotate-annotations-from-dump record)
-                        when (annotate-annotation-root-p annotation)
-                        do (annotate-print-tree annotation
-                                                children-fn
-                                                #'annotate-get-tree-data
-                                                (annotate-annotation-leaf-p-clsr data)
-                                                #'annotate-annotation-root-p))))))
-
 (cl-defmacro annotate-with-annotations-window (&body body)
  `(with-current-buffer-window
       annotate-summary-buffer-name nil nil
@@ -4320,7 +4312,6 @@ their personal database."
                            (kill-buffer annotate-summary-buffer-name)))
       ,@body
       (read-only-mode 1))))
-
 (cl-defun annotate--show-annotation-thread (annotation &key (save-annotations nil))
   "Show a buffer with the annotation thread that has ANNOTATION' as root node."
   (cl-flet ((set-font-lock-mode ()
@@ -4328,6 +4319,7 @@ their personal database."
                nil
                '(("from:.+$" (0 `(face ,annotate-thread-author-face) append))
                  ("^\\*\\*.+$" (0  `(face ,annotate-thread-header-face)))
+                 (" ← " (0 `(face ,annotate-thread-action-prefix-face)))
                  ("▶" (0 `(face ,annotate-thread-tree-arrow-face) append))
                  ("├\\|│\\|╰" (0 `(face ,annotate-thread-tree-face) append))))))
     (when save-annotations
