@@ -4349,7 +4349,7 @@ their personal database."
                                   (annotate-annotation-leaf-p-clsr annotations-db)
                                   #'annotate-annotation-root-p
                                   #'annotate--print-tree-data)
-             (font-lock-fontify-buffer))))))))
+             (font-lock-ensure))))))))
 
 (defun annotate-show-thread-at-point ()
   "Show a buffer with the annotation thread for the annotation under point."
