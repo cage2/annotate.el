@@ -2305,10 +2305,8 @@ identified by the triplets RECORD-FILENAME,
                       (rest-annotations (cl-remove-if annotation-limits-match-p
                                                       (annotate-annotations-from-dump file-matched-record)))
                       (checksum         (annotate-checksum-from-dump file-matched-record))
-                      (new-annotation   (annotate-annotation-replace-annotated-text ann annotation-beginning
-                                                                  annotation-ending
-                                                                  replacing-text
-                                                                  (annotate-annotated-text old-annotation)))
+                      (new-annotation   (annotate-annotation-replace-annotation-text old-annotation
+                                                                                     replacing-text))
                       (new-record       (annotate-make-record record-filename
                                                               (append (list new-annotation)
                                                                       rest-annotations)
@@ -4075,16 +4073,22 @@ The new interval is expanded so that includes A and B."
 
 (defun annotate--db-annotations-overlaps-p (annotation-a annotation-b)
   "Return non nil if ANNOTATION-A and ANNOTATION-B overlaps."
-  (let ((interval-a (annotate-annotation-interval annotation-a))
-        (interval-b (annotate-annotation-interval annotation-b)))
-    (not (or (< (annotate--interval-right-limit interval-b)
-                (annotate--interval-left-limit interval-a))
-             (> (annotate--interval-left-limit interval-b)
-                (annotate--interval-right-limit interval-a))))))
+  ;; reply never overlaps
+  (when (not (or (annotate-annotation-reply-p annotation-a)
+                 (annotate-annotation-reply-p annotation-b)))
+    (let ((interval-a (annotate-annotation-interval annotation-a))
+          (interval-b (annotate-annotation-interval annotation-b)))
+      (not (or (< (annotate--interval-right-limit interval-b)
+                  (annotate--interval-left-limit interval-a))
+               (> (annotate--interval-left-limit interval-b)
+                  (annotate--interval-right-limit interval-a)))))))
 
 (defun annotate--db-merge-annotations (host guest)
   "Merge annotation GUEST into annotation HOST.
-Uses `annotate--merge-interval'."
+Uses `annotate--merge-interval'.
+Notes that both HOST and GUEST must not be replies."
+  (cl-assert (not (annotate-annotation-reply-p host)))
+  (cl-assert (not (annotate-annotation-reply-p guest)))
   (when (annotate--db-annotations-overlaps-p host guest)
     (let* ((interval-host       (annotate-annotation-interval host))
            (interval-guest      (annotate-annotation-interval guest))
@@ -4095,8 +4099,20 @@ Uses `annotate--merge-interval'."
            (left                (annotate--interval-left-limit new-interval))
            (right               (1+ (annotate--interval-right-limit new-interval)))
            (new-annotated-text  (with-current-buffer (current-buffer)
-                                  (buffer-substring-no-properties left right))))
-      (annotate-make-annotation left right new-annotation-text new-annotated-text))))
+                                  (buffer-substring-no-properties left right)))
+           (color-index         (annotate-color-index-from-dump host))
+           (position            (annotate-placement-policy-from-dump host))
+           (id-host             (annotate-annotation-id host))
+           (id-guest            (annotate-annotation-id guest))
+           (reply-to            (annotate-annotation-reply-to host))) ; always nil
+      (annotate--make-annotation-for-record left
+                                            right
+                                            new-annotation-text
+                                            new-annotated-text
+                                            color-index
+                                            position
+                                            id-host
+                                            reply-to))))
 
 (defun annotate--db-remove-overlap-annotations (annotations &optional accum)
   "Recursively merges overlapping annotations in ANNOTATIONS
