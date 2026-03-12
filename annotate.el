@@ -506,8 +506,10 @@ position (so that it is unchanged after this function is called)."
 
 (defun annotate-annotated-text-empty-p (annotation)
   "Does this ANNOTATION contains annotated text?"
-  (= (overlay-start annotation)
-     (overlay-end   annotation)))
+  (and (overlay-start annotation)
+       (overlay-end   annotation)
+       (= (overlay-start annotation)
+          (overlay-end   annotation))))
 
 (cl-defun annotate-annotation-set-id (annotation &optional (id (annotate--generate-unique-id)))
   "Set property id to ID for ANNOTATION."
@@ -1905,6 +1907,18 @@ essentially what you get from:
 \(annotate-annotations-from-dump (nth index (annotate-load-annotations))))."
   (nth 2 annotation-serialized))
 
+
+(cl-defgeneric annotate-annotation-replace-annotation-text (object))
+
+(cl-defmethod annotate-annotation-replace-annotation-text ((object list) new-text)
+  (setf (elt object 2)
+        new-text)
+  object)
+
+(cl-defmethod annotate-annotation-replace-annotation-text ((object overlay) new-text)
+  (overlay-put new-text 'annotation)
+  object)
+
 (defun annotate-annotated-text (annotation-serialized)
   "Get the annotated text of an annotation. The arg ANNOTATION-SERIALIZED
  must be a single annotation field got from a file dump of all
@@ -2291,7 +2305,7 @@ identified by the triplets RECORD-FILENAME,
                       (rest-annotations (cl-remove-if annotation-limits-match-p
                                                       (annotate-annotations-from-dump file-matched-record)))
                       (checksum         (annotate-checksum-from-dump file-matched-record))
-                      (new-annotation   (annotate-make-annotation annotation-beginning
+                      (new-annotation   (annotate-annotation-replace-annotated-text ann annotation-beginning
                                                                   annotation-ending
                                                                   replacing-text
                                                                   (annotate-annotated-text old-annotation)))
@@ -4238,7 +4252,7 @@ their personal database."
                        (insert-rest-line line
                                          (concat "%s%s"
                                                  annotate-thread-trunk-stretch-string
-                                                 " %s\n"))))))
+                                                 " %s\n"))
                        (insert-rest-line line "%s%s %s\n"))))))
     (when (not (annotate-annotation-root-p node))
       (insert annotate-thread-action-prefix-string " [")
