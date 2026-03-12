@@ -538,6 +538,17 @@ position (so that it is unchanged after this function is called)."
 (cl-defmethod annotate-annotation-reply-to ((object list))
   (annotate-reply-to-from-dump object))
 
+(cl-defgeneric annotate-annotation-replace-reply-to (object))
+
+(cl-defmethod annotate-annotation-replace-reply-to ((object list) new-id)
+  (setf (elt object 7)
+        new-id)
+  object)
+
+(cl-defmethod annotate-annotation-replace-reply-to ((object overlay) new-id)
+  (overlay-put new-id 'reply-to)
+  object)
+
 (defun annotate-annotation-reply-p (annotation)
   (annotate-annotation-reply-to annotation))
 
@@ -1906,7 +1917,6 @@ annotation field got from a file dump of all annotated buffers,
 essentially what you get from:
 \(annotate-annotations-from-dump (nth index (annotate-load-annotations))))."
   (nth 2 annotation-serialized))
-
 
 (cl-defgeneric annotate-annotation-replace-annotation-text (object))
 
@@ -4086,9 +4096,7 @@ The new interval is expanded so that includes A and B."
 (defun annotate--db-merge-annotations (host guest)
   "Merge annotation GUEST into annotation HOST.
 Uses `annotate--merge-interval'.
-Notes that both HOST and GUEST must not be replies."
-  (cl-assert (not (annotate-annotation-reply-p host)))
-  (cl-assert (not (annotate-annotation-reply-p guest)))
+Notes that if either HOST or GUEST are replies, this function returns NIL."
   (when (annotate--db-annotations-overlaps-p host guest)
     (let* ((interval-host       (annotate-annotation-interval host))
            (interval-guest      (annotate-annotation-interval guest))
@@ -4143,19 +4151,45 @@ using `annotate--db-merge-annotations'."
                   (cl-find-if (lambda (a)
                                 (let ((scanned-record-filename (annotate-filename-from-dump a)))
                                   (file-equal-p record-filename scanned-record-filename)))
-                              annotations-db))))
+                              annotations-db)))
+              (remap-reply (db-host db-guest replies)
+                (if (null db-host)
+                    replies
+                  (let* ((probe (cl-first db-host))
+                         (probe-id (annotate-annotation-id probe))
+                         (overlapped (cl-find-if (lambda (a)
+                                                   (annotate--db-annotations-overlaps-p probe a))
+                                                 db-guest)))
+                    (if overlapped
+                        (let* ((overlapped-id (annotate-annotation-id overlapped))
+                               (remapped-replies (cl-loop for reply in replies
+                                                          collect
+                                                          (let ((reply-to-id (annotate-annotation-reply-to reply)))
+                                                            (if (annotate-annotation-id= overlapped-id
+                                                                                         reply-to-id)
+                                                                (annotate-annotation-replace-reply-to reply
+                                                                                                      probe-id)
+                                                              reply)))))
+                          (remap-reply (cl-rest db-host)
+                                       db-guest
+                                       remapped-replies)))))))
     (if (null db-1)
         (append accum db-2)
       (let* ((first-record     (cl-first db-1))
              (same-file-record (find-same-file-record first-record db-2)))
         (if same-file-record
-            (let* ((filename                 (annotate-filename-from-dump first-record))
-                   (concatenated-annotations (append (annotate-annotations-from-dump first-record)
-                                                     (annotate-annotations-from-dump same-file-record)))
+            (let* ((filename                   (annotate-filename-from-dump first-record))
+                   (db1-annotations            (annotate-annotations-from-dump first-record))
+                   (db2-annotations            (annotate-annotations-from-dump same-file-record))
+                   (db2-replies                (cl-remove-if-not #'annotate-annotation-reply-p db2-annotations))
+                   (db2-replies-remapped       (remap-reply db1-annotations db2-annotations db2-replies))
+                   (db2-roots                  (cl-remove-if #'annotate-annotation-reply-p db2-annotations))
+                   (concatenated-annotations   (append db1-annotations db2-roots))
                    (non-overlapped-annotations (annotate--db-remove-overlap-annotations concatenated-annotations))
                    (concatenated-checksum      (annotate-checksum-from-dump first-record))
                    (concatenated-record        (annotate-make-record filename
-                                                                     non-overlapped-annotations
+                                                                     (append non-overlapped-annotations
+                                                                             db2-replies-remapped)
                                                                      concatenated-checksum))
                    (rest-of-db-2               (cl-remove-if
                                                 (lambda (a)
