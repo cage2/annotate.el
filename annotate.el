@@ -346,6 +346,9 @@ summary window because does not exist or is in an unsupported
 (defconst annotate-summary-buffer-name "*annotations*"
   "The name of the buffer for summary window.")
 
+(defconst annotate-thread-buffer-name "*annotation thread*"
+  "The name of the buffer for thread window.")
+
 (defconst annotate-dump-from-indirect-bugger-suffix "-was-annotated-indirect-buffer"
   "Append this suffix to a buffer generated from an annotated indirect buffer.")
 
@@ -382,9 +385,11 @@ summary window because does not exist or is in an unsupported
 
 (defconst annotate-thread-trunk-string "│")
 
+(defconst annotate-thread-trunk-stretch-string "┆")
+
 (defconst annotate-thread-action-prefix-string "←")
 
-(defcustom annotate-thread-header-face '(:foreground "#EEF192" :height 1.5)
+(defcustom annotate-thread-header-face '(:height 1.5)
   "Face for header text (the annotated text) in the thread window"
   :type '(repeat (plist)))
 
@@ -392,15 +397,15 @@ summary window because does not exist or is in an unsupported
   "Face for author field in the thread window"
   :type '(repeat (plist)))
 
-(defcustom annotate-thread-tree-arrow-face '(:foreground "purple")
+(defcustom annotate-thread-tree-arrow-face font-lock-warning-face
   "Face for arrow in the tree of a thread window"
   :type '(repeat (plist)))
 
-(defcustom annotate-thread-tree-face '(:foreground "green")
+(defcustom annotate-thread-tree-face font-lock-function-name-face
   "Face for arrow in the tree of a thread window"
   :type '(repeat (plist)))
 
-(defcustom annotate-thread-action-prefix-face '(:foreground "#EEF192")
+(defcustom annotate-thread-action-prefix-face font-lock-constant-face
   "Face for arrow that prefixes actions button in thread window"
   :type '(repeat (plist)))
 
@@ -2233,10 +2238,11 @@ annotation and save to disk."
                                       (string= (annotate-filename-from-dump record)
                                                ,filename)))
          (annotation-limits-match-p (lambda (a)
-                                      (and (= (annotate-beginning-of-annotation a)
-                                              ,beginning)
-                                           (= (annotate-ending-of-annotation    a)
-                                              ,ending)))))
+                                      (when (not (annotate-annotation-reply-p a))
+                                        (and (= (annotate-beginning-of-annotation a)
+                                                ,beginning)
+                                             (= (annotate-ending-of-annotation    a)
+                                                ,ending))))))
      ,@body))
 
 (defun annotate-db-remove-annotation (db-records
@@ -4191,7 +4197,13 @@ their personal database."
 (defun annotate-get-tree-data (annotation)
   (annotate-annotation-string annotation))
 
-(cl-defun annotate--print-tree-data (node data format indent last-child &rest args)
+(cl-defun annotate--print-tree-data (node
+                                     data
+                                     format
+                                     indent
+                                     last-child
+                                     get-children-fn
+                                     &rest args)
   (cl-flet ((insert-first-line (lines format-control)
               (insert (apply #'format
                              (append (list (concat format format-control))
@@ -4212,10 +4224,22 @@ their personal database."
         (insert-first-line lines "%s "))
       (cl-loop for line in rest-lines
                for count from 0
-               do (if (= count
-                         (1- (length rest-lines)))
-                      (insert-rest-line line "%s%s%s ")
-                    (insert-rest-line line "%s%s%s\n"))))
+               do
+               (let ((children (funcall get-children-fn node)))
+                 (if (= count
+                        (1- (length rest-lines)))
+                     (if children
+                         (insert-rest-line line
+                                           (concat "%s%s"
+                                                   annotate-thread-trunk-stretch-string
+                                                   " %s "))
+                       (insert-rest-line line "%s%s %s "))
+                   (if children
+                       (insert-rest-line line
+                                         (concat "%s%s"
+                                                 annotate-thread-trunk-stretch-string
+                                                 " %s\n"))))))
+                       (insert-rest-line line "%s%s %s\n"))))))
     (when (not (annotate-annotation-root-p node))
       (insert annotate-thread-action-prefix-string " [")
       (insert-button annotate-thread-delete-button-label
@@ -4267,26 +4291,37 @@ their personal database."
         (children (funcall get-children-fn node)))
     (cond
      ((annotate-annotation-root-p node)
-      (funcall print-data-fn node data "%s" "" last-child))
+      (funcall print-data-fn
+               node
+               data
+               "%s"
+               ""
+               last-child
+               get-children-fn))
      (last-child
       (funcall print-data-fn
                node
                data
                (concat "%s" annotate-thread-leaf-string)
                indent
-               last-child))
+               last-child
+               get-children-fn))
      (t
       (funcall print-data-fn
                node
                data
                (concat "%s" annotate-thread-branch-string)
-               indent last-child)))
+               indent
+               last-child
+               get-children-fn)))
     (cond
      ((or (null children)
           last-child)
       (setf indent (concat indent "  ")))
      ((not (annotate-annotation-root-p node))
-      (setf indent (concat indent "│ "))))
+      (setf indent (concat indent
+                           annotate-thread-trunk-string
+                           " "))))
     (cl-loop for child in children
              for count-children from 0
              do (annotate-print-tree child
@@ -4299,29 +4334,31 @@ their personal database."
                                      :last-child (= count-children
                                                     (1- (length children)))))))
 
-(cl-defmacro annotate-with-annotations-window (&body body)
+(cl-defmacro annotate-with-annotations-window ((buffer-name) &body body)
  `(with-current-buffer-window
-      annotate-summary-buffer-name nil nil
+      ,buffer-name nil nil
     (progn
       (read-only-mode 0)
-      (display-buffer annotate-summary-buffer-name)
-      (select-window (get-buffer-window annotate-summary-buffer-name t))
+      (display-buffer ,buffer-name)
+      (select-window (get-buffer-window ,buffer-name t))
       (use-local-map nil)
-      (local-set-key "q" (lambda ()
-                           (interactive)
-                           (kill-buffer annotate-summary-buffer-name)))
+      (local-set-key "q"
+                     (lambda ()
+                       (interactive)
+                       (kill-buffer ,buffer-name)))
       ,@body
       (read-only-mode 1))))
+
 (cl-defun annotate--show-annotation-thread (annotation &key (save-annotations nil))
   "Show a buffer with the annotation thread that has ANNOTATION' as root node."
   (cl-flet ((set-font-lock-mode ()
               (font-lock-add-keywords
                nil
                '(("from:.+$" (0 `(face ,annotate-thread-author-face) append))
-                 ("^\\*\\*.+$" (0  `(face ,annotate-thread-header-face)))
-                 (" ← " (0 `(face ,annotate-thread-action-prefix-face)))
+                 ("^\\*\\*.+$" (0  `(face ,annotate-thread-header-face) append))
+                 (" ← " (0 `(face ,annotate-thread-action-prefix-face) append))
                  ("▶" (0 `(face ,annotate-thread-tree-arrow-face) append))
-                 ("├\\|│\\|╰" (0 `(face ,annotate-thread-tree-face) append))))))
+                 ("├\\|│\\|╰\\|┆" (0 `(face ,annotate-thread-tree-face) append))))))
     (when save-annotations
       (annotate-save-all-annotated-buffers))
     (let ((annotations-db (annotate-load-annotation-data t)))
@@ -4330,7 +4367,7 @@ their personal database."
             (message "The annotation database is empty"))
         (when-let ((annotation-serialized (annotate--find-annotation annotations-db
                                                                      annotation)))
-          (annotate-with-annotations-window
+          (annotate-with-annotations-window (annotate-thread-buffer-name)
            (set-font-lock-mode)
            (let ((annotated-text  (annotate-annotated-text annotation-serialized))
                  (children-fn     (annotate-get-tree-children-clsr annotations-db)))
