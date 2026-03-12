@@ -546,7 +546,7 @@ position (so that it is unchanged after this function is called)."
   object)
 
 (cl-defmethod annotate-annotation-replace-reply-to ((object overlay) new-id)
-  (overlay-put new-id 'reply-to)
+  (overlay-put object 'reply-to new-id)
   object)
 
 (defun annotate-annotation-reply-p (annotation)
@@ -1926,7 +1926,7 @@ essentially what you get from:
   object)
 
 (cl-defmethod annotate-annotation-replace-annotation-text ((object overlay) new-text)
-  (overlay-put new-text 'annotation)
+  (overlay-put object 'annotation new-text)
   object)
 
 (defun annotate-annotated-text (annotation-serialized)
