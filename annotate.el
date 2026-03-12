@@ -4111,7 +4111,6 @@ Notes that if either HOST or GUEST are replies, this function returns NIL."
            (color-index         (annotate-color-index-from-dump host))
            (position            (annotate-placement-policy-from-dump host))
            (id-host             (annotate-annotation-id host))
-           (id-guest            (annotate-annotation-id guest))
            (reply-to            (annotate-annotation-reply-to host))) ; always nil
       (annotate--make-annotation-for-record left
                                             right
