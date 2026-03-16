@@ -387,7 +387,7 @@ summary window because does not exist or is in an unsupported
 
 (defconst annotate-thread-trunk-stretch-string "┆")
 
-(defconst annotate-thread-action-prefix-string "←")
+(defconst annotate-thread-action-prefix-string "↑")
 
 (defcustom annotate-thread-header-face '(:height 1.5)
   "Face for header text (the annotated text) in the thread window"
@@ -4267,53 +4267,71 @@ their personal database."
                                      last-child
                                      get-children-fn
                                      &rest args)
-  (cl-flet ((insert-first-line (lines format-control)
-              (insert (apply #'format
-                             (append (list (concat format format-control))
-                                     (append (list indent)
-                                             args
-                                             (list (cl-first lines)))))))
-            (insert-rest-line (line format-control)
-              (insert (format format-control
-                              indent
-                              (if last-child
-                                  "  "
-                                (concat annotate-thread-trunk-string " "))
-                              line))))
-    (let* ((lines (annotate--split-lines data))
+  (cl-labels ((insert-first-line (lines)
+                (insert (apply #'format
+                               (append (list (concat format "%s\n"))
+                                       (append (list indent)
+                                               args
+                                               (list (cl-first lines)))))))
+              (insert-rest-line (line format-control)
+                (insert (format format-control
+                                indent
+                                (if last-child
+                                    "  "
+                                  (concat annotate-thread-trunk-string " "))
+                                line)))
+              (promote-to-button (target action node)
+                (let ((bol (annotate-beginning-of-line-pos))
+                      (eol (annotate-end-of-line-pos)))
+                  (save-match-data
+                    (goto-char bol)
+                    (re-search-forward target)
+                    (let ((start-button (match-beginning 0))
+                          (end-button (match-end 0)))
+                      (make-text-button start-button
+                                        end-button
+                                        'action action
+                                        'annotation-bound node))
+                    (goto-char eol))))
+              (insert-stretched-line (line &key (add-newline nil))
+                (insert-rest-line line
+                                  (concat "%s%s"
+                                          annotate-thread-trunk-stretch-string
+                                          (if add-newline
+                                              " %s\n"
+                                            " %s ")))))
+    (let* ((children (funcall get-children-fn node))
+           (inner-node (not (annotate-annotation-root-p node)))
+           (lines (append (annotate--split-lines data)
+                          (when inner-node
+                            (list (format " %s" annotate-thread-action-prefix-string)))
+                          (when inner-node
+                            (list (format " %s%s%s" "[" annotate-thread-delete-button-label "]")))
+                          (list (format " %s%s%s" "[" annotate-thread-reply-button-label "]"))))
            (rest-lines (cl-rest lines)))
-      (if rest-lines
-          (insert-first-line lines "%s\n")
-        (insert-first-line lines "%s "))
+      (insert-first-line lines)
       (cl-loop for line in rest-lines
                for count from 0
                do
-               (let ((children (funcall get-children-fn node)))
-                 (if (= count
-                        (1- (length rest-lines)))
-                     (if children
-                         (insert-rest-line line
-                                           (concat "%s%s"
-                                                   annotate-thread-trunk-stretch-string
-                                                   " %s "))
+               (if (= count
+                      (1- (length rest-lines))) ;; buttons
+                   (progn
+                     (if (and children
+                              inner-node)
+                         (insert-stretched-line line)
                        (insert-rest-line line "%s%s %s "))
-                   (if children
-                       (insert-rest-line line
-                                         (concat "%s%s"
-                                                 annotate-thread-trunk-stretch-string
-                                                 " %s\n"))
-                       (insert-rest-line line "%s%s %s\n"))))))
-    (when (not (annotate-annotation-root-p node))
-      (insert annotate-thread-action-prefix-string " [")
-      (insert-button annotate-thread-delete-button-label
-                     'action 'annotate-thread-delete-button-pressed
-                     'annotation-bound node)
-      (insert "] "))
-    (insert "[")
-    (insert-button annotate-thread-reply-button-label
-                   'action 'annotate-thread-reply-button-pressed
-                   'annotation-bound node)
-    (insert "]")
+                     (promote-to-button annotate-thread-reply-button-label
+                                        'annotate-thread-reply-button-pressed
+                                        node)
+                     (when inner-node
+                       (goto-char (1- (annotate-beginning-of-line-pos))) ; go to "delete" button
+                       (promote-to-button annotate-thread-delete-button-label
+                                          'annotate-thread-delete-button-pressed
+                                          node))
+                     (goto-char (point-max)))
+                 (if children
+                     (insert-stretched-line line :add-newline t)
+                   (insert-rest-line line "%s%s %s\n")))))
     (insert "\n")))
 
 (defun annotate-thread-delete-button-pressed (button)
@@ -4419,7 +4437,7 @@ their personal database."
                nil
                '(("from:.+$" (0 `(face ,annotate-thread-author-face) append))
                  ("^\\*\\*.+$" (0  `(face ,annotate-thread-header-face) append))
-                 (" ← " (0 `(face ,annotate-thread-action-prefix-face) append))
+                 ("↑" (0 `(face ,annotate-thread-action-prefix-face) append))
                  ("▶" (0 `(face ,annotate-thread-tree-arrow-face) append))
                  ("├\\|│\\|╰\\|┆" (0 `(face ,annotate-thread-tree-face) append))))))
     (when save-annotations
