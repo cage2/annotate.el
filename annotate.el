@@ -4475,7 +4475,7 @@ their personal database."
   (cl-flet ((set-font-lock-mode ()
               (font-lock-add-keywords
                nil
-               `(("delete\\|add reply"
+               `(("delete$\\|add reply$"
                   (0 `(face ,annotate-thread-action-face) append))
                  ("from:\\(.+$\\)" (1 `(face ,annotate-thread-author-face) append))
                  ("\\(from:\\)\\(.+$\\)" (1 `(face ,annotate-thread-tree-arrow-face) append))
@@ -4483,6 +4483,8 @@ their personal database."
                  ("↑" (0 `(face ,annotate-thread-action-face) append))
                  ("▶" (0 `(face ,annotate-thread-tree-arrow-face) append))
                  ("├\\|│\\|╰\\|┆" (0 `(face ,annotate-thread-tree-face) append))))))
+    (when save-annotations
+      (annotate-save-all-annotated-buffers))
     (let ((annotations-db (annotate-load-annotation-data t)))
       (if (annotate--db-empty-p annotations-db)
           (when annotate-use-messages
@@ -4501,6 +4503,8 @@ their personal database."
              (font-lock-ensure)))))))
 
 (cl-defmethod annotate--show-annotation-thread ((object overlay) &key (save-annotations nil))
+  (when save-annotations
+    (annotate-save-all-annotated-buffers))
   (let ((annotations-db (annotate-load-annotation-data t)))
     (if (annotate--db-empty-p annotations-db)
         (when annotate-use-messages
@@ -4508,7 +4512,7 @@ their personal database."
       (when-let ((annotation-serialized (annotate--find-annotation annotations-db
                                                                    object)))
         (annotate--show-annotation-thread annotation-serialized
-                                          :save-annotations save-annotations)))))
+                                          :save-annotations nil)))))
 
 (defun annotate-show-thread-at-point ()
   "Show a buffer with the annotation thread for the annotation under point."
