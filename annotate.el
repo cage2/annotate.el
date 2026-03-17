@@ -4321,13 +4321,21 @@ their personal database."
                                           annotate-thread-trunk-stretch-string
                                           (if add-newline
                                               " %s\n"
-                                            " %s ")))))
+                                            " %s "))))
+              (insert-empty-line (line inner-node)
+                (if inner-node
+                    (insert-rest-line line
+                                      (concat "%s%s"
+                                              annotate-thread-trunk-stretch-string
+                                              "%s"))
+                  (insert-rest-line line "%s%s %s"))))
     (let* ((children (funcall get-children-fn node))
            (inner-node (not (annotate-annotation-root-p node)))
            (lines (append (annotate--split-lines data)
                           (when inner-node
                             (list annotate-thread-delete-button-label))
-                          (list annotate-thread-reply-button-label)))
+                          (list annotate-thread-reply-button-label)
+                          (list "\n")))
            (rest-lines (cl-rest lines)))
       (insert-first-line lines)
       (cl-loop for line in rest-lines
@@ -4336,11 +4344,12 @@ their personal database."
                (cond
                 ((= count
                     (- (length rest-lines)
-                       1)) ;; buttons
+                       2)) ;; buttons
                  (if (and children
                           inner-node)
-                       (insert-stretched-line line)
-                   (insert-rest-line line "%s%s %s "))
+                       (insert-stretched-line line :add-newline t)
+                   (insert-rest-line line "%s%s %s\n"))
+                 (goto-char (1- (annotate-beginning-of-line-pos))) ; go to "reply" button
                  (promote-to-button annotate-thread-reply-button-label
                                     'annotate-thread-reply-button-pressed
                                     'annotate-thread-reply-node-button
@@ -4352,11 +4361,16 @@ their personal database."
                                       'annotate-thread-delete-node-button
                                         node))
                  (goto-char (point-max)))
+                ((= count
+                     (- (length rest-lines)
+                         1))
+                 (if children
+                     (insert-empty-line line inner-node)
+                   (insert-rest-line line "%s%s%s")))
                 (t
                  (if children
                      (insert-stretched-line line :add-newline t)
-                   (insert-rest-line line "%s%s %s\n"))))))
-    (insert "\n")))
+                   (insert-rest-line line "%s%s %s\n"))))))))
 
 (defun annotate-thread-delete-button-pressed (button)
   "Callback called when a delete button in the thread window is activated."
