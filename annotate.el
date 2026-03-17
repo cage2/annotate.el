@@ -355,11 +355,14 @@ summary window because does not exist or is in an unsupported
 (defconst annotate-annotation-prompt "Annotation: "
   "The prompt when asking user for annotation modification.")
 
-(defconst annotate-summary-delete-button-label "[delete]"
+(defconst annotate-summary-delete-button-label "🧹delete"
   "The label for the button, in summary window, to delete an annotation.")
 
-(defconst annotate-summary-replace-button-label "[replace]"
+(defconst annotate-summary-replace-button-label "📝replace"
   "The label for the button, in summary window, to replace an annotation.")
+
+(defconst annotate-summary-show-thread-button-label "🧵show thread"
+  "The label for the button, in summary window, to show the annotation's thread.")
 
 (defconst annotate-confirm-deleting-annotation-prompt  "Delete this annotation? "
   "Prompt to be shown when asking for annotation deletion confirm.")
@@ -373,10 +376,10 @@ summary window because does not exist or is in an unsupported
 (defconst annotate-message-annotations-not-found "No annotations found."
   "The message shown when no annotations has been loaded from the database.")
 
-(defconst annotate-thread-delete-button-label "delete"
+(defconst annotate-thread-delete-button-label "🧹delete"
   "The label for the button, in thread window, to delete an annotation.")
 
-(defconst annotate-thread-reply-button-label "reply"
+(defconst annotate-thread-reply-button-label "📝add reply"
   "The label for the button, in thread window, to delete an annotation.")
 
 (defconst annotate-thread-branch-string "├▶")
@@ -387,13 +390,11 @@ summary window because does not exist or is in an unsupported
 
 (defconst annotate-thread-trunk-stretch-string "┆")
 
-(defconst annotate-thread-action-prefix-string "↑")
-
 (defcustom annotate-thread-header-face '(:height 1.5)
   "Face for header text (the annotated text) in the thread window"
   :type '(repeat (plist)))
 
-(defcustom annotate-thread-author-face '(:weight bold)
+(defcustom annotate-thread-author-face 'font-lock-doc-face
   "Face for author field in the thread window"
   :type '(repeat (plist)))
 
@@ -405,7 +406,7 @@ summary window because does not exist or is in an unsupported
   "Face for arrow in the tree of a thread window"
   :type '(repeat (plist)))
 
-(defcustom annotate-thread-action-prefix-face font-lock-constant-face
+(defcustom annotate-thread-action-face font-lock-comment-face
   "Face for arrow that prefixes actions button in thread window"
   :type '(repeat (plist)))
 
@@ -3237,6 +3238,10 @@ sophisticated way than plain text."
   'follow-link t
   'help-echo "Click to replace annotation")
 
+(define-button-type 'annotate-summary-show-thread-button
+  'follow-link t
+  'help-echo "Click to add a note")
+
 (defun annotate-info-setup (file-or-node buffer)
   "Display Info node FILE-OR-NODE in BUFFER.
 
@@ -3318,6 +3323,10 @@ pressed."
         (annotate-update-visited-buffer-maybe filename)
         (annotate-show-annotation-summary query nil nil)))))
 
+(defun annotate-summary-show-thread-button-pressed (button)
+  (let ((annotation (button-get button 'annotation-bound)))
+    (annotate--show-annotation-thread annotation)))
+
 (cl-defun annotate-wrap-text (text &optional (wrapper "\""))
   "Wrap string TEXT with string WRAPPER."
   (concat wrapper text wrapper))
@@ -3390,22 +3399,17 @@ results can be filtered with a simple query language: see
                 (insert "\n\n")
                 (insert annotate-summary-list-prefix)
                 (insert "  ")
-                (let ((del-button (insert-button
-                                   annotate-summary-delete-button-label
-                                   'file       filename
-                                   'beginning  annotation-beginning
-                                   'ending     annotation-ending
-                                   'annotation-bound serialized-annotation
-                                   'action
-                                   'annotate-summary-delete-annotation-button-pressed
-                                   'type
-                                   'annotate-summary-delete-annotation-button)))
-                  (button-put del-button
-                              'begin-of-button
-                              (annotate-beginning-of-line-pos))
-                  (button-put del-button
-                              'end-of-button
-                              (annotate-end-of-line-pos)))
+                (insert-button annotate-summary-delete-button-label
+                               'file       filename
+                               'beginning  annotation-beginning
+                               'ending     annotation-ending
+                               'annotation-bound serialized-annotation
+                               'action
+                               'annotate-summary-delete-annotation-button-pressed
+                               'type
+                               'annotate-summary-delete-annotation-button
+                               'begin-of-button (annotate-beginning-of-line-pos)
+                               'end-of-button (annotate-end-of-line-pos))
                 (insert "\n")
                 (insert annotate-summary-list-prefix)
                 (insert "  ")
@@ -3419,6 +3423,15 @@ results can be filtered with a simple query language: see
                                'annotate-summary-replace-annotation-button-pressed
                                'type
                                'annotate-summary-replace-annotation-button)
+                (insert "\n")
+                (insert annotate-summary-list-prefix)
+                (insert "  ")
+                (insert-button annotate-summary-show-thread-button-label
+                               'annotation-bound serialized-annotation
+                               'action
+                               'annotate-summary-show-thread-button-pressed
+                               'type
+                               'annotate-summary-show-thread-button)
                 (insert "\n\n"))
               (clean-snippet (snippet)
                 (save-match-data
@@ -4260,6 +4273,14 @@ their personal database."
 (defun annotate-get-tree-data (annotation)
   (annotate-annotation-string annotation))
 
+(define-button-type 'annotate-thread-delete-node-button
+  'follow-link t
+  'help-echo "Click to delete this note")
+
+(define-button-type 'annotate-thread-reply-node-button
+  'follow-link t
+  'help-echo "Click to reply to this note")
+
 (cl-defun annotate--print-tree-data (node
                                      data
                                      format
@@ -4280,7 +4301,7 @@ their personal database."
                                     "  "
                                   (concat annotate-thread-trunk-string " "))
                                 line)))
-              (promote-to-button (target action node)
+              (promote-to-button (target action type node)
                 (let ((bol (annotate-beginning-of-line-pos))
                       (eol (annotate-end-of-line-pos)))
                   (save-match-data
@@ -4288,10 +4309,11 @@ their personal database."
                     (re-search-forward target)
                     (let ((start-button (match-beginning 0))
                           (end-button (match-end 0)))
-                      (make-text-button start-button
-                                        end-button
-                                        'action action
-                                        'annotation-bound node))
+                      (make-button start-button
+                                   end-button
+                                   'type type
+                                   'action action
+                                   'annotation-bound node))
                     (goto-char eol))))
               (insert-stretched-line (line &key (add-newline nil))
                 (insert-rest-line line
@@ -4304,34 +4326,36 @@ their personal database."
            (inner-node (not (annotate-annotation-root-p node)))
            (lines (append (annotate--split-lines data)
                           (when inner-node
-                            (list (format " %s" annotate-thread-action-prefix-string)))
-                          (when inner-node
-                            (list (format " %s%s%s" "[" annotate-thread-delete-button-label "]")))
-                          (list (format " %s%s%s" "[" annotate-thread-reply-button-label "]"))))
+                            (list annotate-thread-delete-button-label))
+                          (list annotate-thread-reply-button-label)))
            (rest-lines (cl-rest lines)))
       (insert-first-line lines)
       (cl-loop for line in rest-lines
                for count from 0
                do
-               (if (= count
-                      (1- (length rest-lines))) ;; buttons
-                   (progn
-                     (if (and children
-                              inner-node)
-                         (insert-stretched-line line)
-                       (insert-rest-line line "%s%s %s "))
-                     (promote-to-button annotate-thread-reply-button-label
-                                        'annotate-thread-reply-button-pressed
-                                        node)
-                     (when inner-node
-                       (goto-char (1- (annotate-beginning-of-line-pos))) ; go to "delete" button
-                       (promote-to-button annotate-thread-delete-button-label
-                                          'annotate-thread-delete-button-pressed
-                                          node))
-                     (goto-char (point-max)))
+               (cond
+                ((= count
+                    (- (length rest-lines)
+                       1)) ;; buttons
+                 (if (and children
+                          inner-node)
+                       (insert-stretched-line line)
+                   (insert-rest-line line "%s%s %s "))
+                 (promote-to-button annotate-thread-reply-button-label
+                                    'annotate-thread-reply-button-pressed
+                                    'annotate-thread-reply-node-button
+                                    node)
+                 (when inner-node
+                   (goto-char (1- (annotate-beginning-of-line-pos))) ; go to "delete" button
+                   (promote-to-button annotate-thread-delete-button-label
+                                      'annotate-thread-delete-button-pressed
+                                      'annotate-thread-delete-node-button
+                                        node))
+                 (goto-char (point-max)))
+                (t
                  (if children
                      (insert-stretched-line line :add-newline t)
-                   (insert-rest-line line "%s%s %s\n")))))
+                   (insert-rest-line line "%s%s %s\n"))))))
     (insert "\n")))
 
 (defun annotate-thread-delete-button-pressed (button)
@@ -4430,36 +4454,47 @@ their personal database."
       ,@body
       (read-only-mode 1))))
 
-(cl-defun annotate--show-annotation-thread (annotation &key (save-annotations nil))
-  "Show a buffer with the annotation thread that has ANNOTATION' as root node."
+(cl-defgeneric annotate--show-annotation-thread (object &key save-annotations)
+    "Show a buffer with the annotation thread that has OBJECT as root node.")
+
+(cl-defmethod annotate--show-annotation-thread ((object list) &key (save-annotations nil))
   (cl-flet ((set-font-lock-mode ()
               (font-lock-add-keywords
                nil
-               '(("from:.+$" (0 `(face ,annotate-thread-author-face) append))
+               `(("delete\\|add reply"
+                  (0 `(face ,annotate-thread-action-face) append))
+                 ("from:\\(.+$\\)" (1 `(face ,annotate-thread-author-face) append))
+                 ("\\(from:\\)\\(.+$\\)" (1 `(face ,annotate-thread-tree-arrow-face) append))
                  ("^\\*\\*.+$" (0  `(face ,annotate-thread-header-face) append))
-                 ("↑" (0 `(face ,annotate-thread-action-prefix-face) append))
+                 ("↑" (0 `(face ,annotate-thread-action-face) append))
                  ("▶" (0 `(face ,annotate-thread-tree-arrow-face) append))
                  ("├\\|│\\|╰\\|┆" (0 `(face ,annotate-thread-tree-face) append))))))
-    (when save-annotations
-      (annotate-save-all-annotated-buffers))
     (let ((annotations-db (annotate-load-annotation-data t)))
       (if (annotate--db-empty-p annotations-db)
           (when annotate-use-messages
             (message "The annotation database is empty"))
-        (when-let ((annotation-serialized (annotate--find-annotation annotations-db
-                                                                     annotation)))
-          (annotate-with-annotations-window (annotate-thread-buffer-name)
+        (annotate-with-annotations-window (annotate-thread-buffer-name)
            (set-font-lock-mode)
-           (let ((annotated-text  (annotate-annotated-text annotation-serialized))
-                 (children-fn     (annotate-get-tree-children-clsr annotations-db)))
+           (let ((annotated-text (annotate-annotated-text object))
+                 (children-fn    (annotate-get-tree-children-clsr annotations-db)))
              (insert "** " annotated-text "\n\n")
-             (annotate-print-tree (annotate--find-annotation annotations-db annotation)
+             (annotate-print-tree object
                                   children-fn
                                   #'annotate-get-tree-data
                                   (annotate-annotation-leaf-p-clsr annotations-db)
                                   #'annotate-annotation-root-p
                                   #'annotate--print-tree-data)
-             (font-lock-ensure))))))))
+             (font-lock-ensure)))))))
+
+(cl-defmethod annotate--show-annotation-thread ((object overlay) &key (save-annotations nil))
+  (let ((annotations-db (annotate-load-annotation-data t)))
+    (if (annotate--db-empty-p annotations-db)
+        (when annotate-use-messages
+          (message "The annotation database is empty"))
+      (when-let ((annotation-serialized (annotate--find-annotation annotations-db
+                                                                   object)))
+        (annotate--show-annotation-thread annotation-serialized
+                                          :save-annotations save-annotations)))))
 
 (defun annotate-show-thread-at-point ()
   "Show a buffer with the annotation thread for the annotation under point."
