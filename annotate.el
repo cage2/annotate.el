@@ -398,15 +398,15 @@ summary window because does not exist or is in an unsupported
   "Face for author field in the thread window"
   :type '(repeat (plist)))
 
-(defcustom annotate-thread-tree-arrow-face font-lock-warning-face
+(defcustom annotate-thread-tree-arrow-face 'font-lock-warning-face
   "Face for arrow in the tree of a thread window"
   :type '(repeat (plist)))
 
-(defcustom annotate-thread-tree-face font-lock-function-name-face
+(defcustom annotate-thread-tree-face 'font-lock-function-name-face
   "Face for arrow in the tree of a thread window"
   :type '(repeat (plist)))
 
-(defcustom annotate-thread-action-face font-lock-comment-face
+(defcustom annotate-thread-action-face 'font-lock-comment-face
   "Face for arrow that prefixes actions button in thread window"
   :type '(repeat (plist)))
 
@@ -4509,8 +4509,8 @@ their personal database."
     (if (annotate--db-empty-p annotations-db)
         (when annotate-use-messages
           (message "The annotation database is empty"))
-      (when-let ((annotation-serialized (annotate--find-annotation annotations-db
-                                                                   object)))
+      (when-let* ((annotation-serialized (annotate--find-annotation annotations-db
+                                                                    object)))
         (annotate--show-annotation-thread annotation-serialized
                                           :save-annotations nil)))))
 
