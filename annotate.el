@@ -2907,15 +2907,15 @@ SERIALIZED-ANNOTATION exists."
                                          (annotate-checksum-from-dump record))
                  record)))))
 
-(cl-defgeneric annotate-get-children-from-dump (annotate-db object)
+(cl-defgeneric annotate-get-annotation-children (annotate-db object)
   "Returns the replies of OBJECT in ANNOTATE-DB.")
 
-(cl-defmethod annotate-get-children-from-dump (annotate-db (object list))
+(cl-defmethod annotate-get-annotation-children (annotate-db (object list))
   "Returns the replies of OBJECT in ANNOTATE-DB."
   (let ((id (annotate-id-from-dump object)))
-    (annotate-get-children-from-dump annotate-db id)))
+    (annotate-get-annotation-children annotate-db id)))
 
-(cl-defmethod annotate-get-children-from-dump (annotate-db (object string))
+(cl-defmethod annotate-get-annotation-children (annotate-db (object string))
   "Returns the replies of OBJECT in ANNOTATE-DB."
   (let ((id        object)
         (children '()))
@@ -2972,7 +2972,7 @@ serialzed annotation OBJECT and, if exist, recursively all its children."
   "Remove the entry in OBJECTS-DB that contains an object with the id of OBJECT
 and, if exist, recursively all its children."
   (let* ((id-to-delete object)
-         (children     (annotate-get-children-from-dump annotations-db id-to-delete))
+         (children     (annotate-get-annotation-children annotations-db id-to-delete))
          (filtered-db
           (cl-loop for record in annotations-db
                    collect
@@ -4290,7 +4290,7 @@ their personal database."
 (defun annotate-get-tree-children-clsr (annotate-db)
   "Returns a function that returns the children of an annotation passed as argument."
   (lambda (annotation)
-    (annotate-get-children-from-dump annotate-db annotation)))
+    (annotate-get-annotation-children annotate-db annotation)))
 
 (defun annotate-annotation-leaf-p (annotation annotations-db)
   "Returns non nil if ANNOTATION is a leaf (no replies)."
