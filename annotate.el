@@ -4531,19 +4531,33 @@ passed as argument is a leaf."
 (cl-defgeneric annotate--show-annotation-thread (object &key save-annotations)
 "Show a buffer with the annotation thread that has OBJECT as root node.")
 
+(defun annotate--make-tree-font-matcher-function (search-for)
+  (lambda (limit)
+    (re-search-forward search-for limit t)))
+
+(defun annotate--add-reply-button-matcher (limit)
+  (funcall (annotate--make-tree-font-matcher-function annotate-thread-reply-button-label)
+           limit))
+
+(defun annotate--delete-node-button-matcher (limit)
+  (funcall (annotate--make-tree-font-matcher-function annotate-thread-delete-button-label)
+           limit))
+
 (cl-defmethod annotate--show-annotation-thread ((object list) &key (save-annotations nil))
   "Show a buffer with the annotation thread that has OBJECT as root node."
-  (cl-flet ((set-font-lock-mode ()
-              (font-lock-add-keywords
-               nil
-               `(("❌delete\\|✏️add reply"
-                  (0 `(face ,annotate-thread-action-face) append))
-                 ("from:\\(.+$\\)" (1 `(face ,annotate-thread-author-face) append))
-                 ("\\(from:\\)\\(.+$\\)" (1 `(face ,annotate-thread-tree-arrow-face) append))
-                 ("^🡆.+$" (0  `(face ,annotate-thread-header-face) append))
-                 ("↑" (0 `(face ,annotate-thread-action-face) append))
-                 ("▶" (0 `(face ,annotate-thread-tree-arrow-face) append))
-                 ("├\\|│\\|╰\\|┆" (0 `(face ,annotate-thread-tree-face) append))))))
+  (cl-labels ((set-font-lock-mode ()
+                (font-lock-add-keywords
+                 nil
+                 `((annotate--delete-node-button-matcher
+                    (0 `(face ,annotate-thread-action-face) append))
+                   (annotate--add-reply-button-matcher
+                    (0 `(face ,annotate-thread-action-face) append))
+                   ("from:\\(.+$\\)" (1 `(face ,annotate-thread-author-face) append))
+                   ("\\(from:\\)\\(.+$\\)" (1 `(face ,annotate-thread-tree-arrow-face) append))
+                   ("^🡆.+$" (0  `(face ,annotate-thread-header-face) append))
+                   ("↑" (0 `(face ,annotate-thread-action-face) append))
+                   ("▶" (0 `(face ,annotate-thread-tree-arrow-face) append))
+                   ("├\\|│\\|╰\\|┆" (0 `(face ,annotate-thread-tree-face) append))))))
     (when save-annotations
       (annotate-save-all-annotated-buffers))
     (let ((annotations-db (annotate-load-annotation-data t)))
