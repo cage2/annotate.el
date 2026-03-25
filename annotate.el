@@ -887,9 +887,10 @@ specified by FROM and TO."
                                           parent-id)))
 
 (defun annotate--make-reply-annotation (parent-annotation author reply-body)
-  "Makes an annotation with text equals to the concatenation of AUTHOR and REPLY-BODY
-(see: `annotate--make-reply-to'. The new annotation will be a reply
-to PARENT-ANNOTATION. This new annotation will be saved in the annotations database."
+  "Makes an annotation with text equals to the concatenation
+of AUTHOR and REPLY-BODY (see: `annotate--make-reply-to'.
+The new annotation will be a reply to PARENT-ANNOTATION.
+This new annotation will be saved in the annotations database."
   (let ((annotation-record (annotate--make-reply-to parent-annotation
                                                     author
                                                     reply-body)))
@@ -1126,8 +1127,7 @@ STARTINGP is an internal variable."
         (annotate-goto-next-annotation :startingp t)))))
 
 (cl-defun annotate-goto-previous-annotation (&key (startingp t))
-  "Move point to the previous annotation.
-STARTINGP is an internal variable."
+  "Move point to the previous annotation.  STARTINGP is an internal variable."
   (interactive)
   (let ((annotation (annotate-annotation-at (point))))
     (if startingp
@@ -1193,14 +1193,12 @@ STARTINGP is an internal variable."
         (font-lock-flush)))))
 
 (defun annotate-actual-comment-start ()
-  "String for comment start related to current buffer's major
-mode."
+  "String for comment start related to current buffer's major mode."
   (or comment-start
       annotate-fallback-comment))
 
 (defun annotate-actual-comment-end ()
-  "String for comment ends, if any, related to current buffer's
-major mode."
+  "String for comment ends, if any, related to current buffer's major mode."
   (or comment-end
       ""))
 
@@ -2863,10 +2861,12 @@ This function is not part of the public API."
       (y-or-n-p annotate-confirm-deleting-annotation-prompt)))
 
 (cl-defgeneric annotate-remove-annotation-from-dump (annotations-db object)
-    "Remove the entry in ANNOTATIONS-DB that contains an object with the id of OBJECT.")
+  "Remove the entry in ANNOTATIONS-DB that contains an object
+with the id of OBJECT.")
 
 (cl-defmethod annotate-remove-annotation-from-dump (annotations-db object)
-  "Remove the entry in ANNOTATIONS-DB that contains an object with the id of OBJECT."
+  "Remove the entry in ANNOTATIONS-DB that contains an object with
+the id of OBJECT."
   (annotate-ensure-annotation (object)
     (let ((id-to-delete (annotate-annotation-id object)))
       (annotate-remove-annotation-from-dump annotations-db id-to-delete))))
@@ -4288,7 +4288,8 @@ their personal database."
             (message "Imported annotations from %s." imported-db-name)))))))
 
 (defun annotate-get-tree-children-clsr (annotate-db)
-  "Returns a function that returns the children of an annotation passed as argument."
+  "Returns a function that returns the children of an annotation passed
+as argument."
   (lambda (annotation)
     (annotate-get-annotation-children annotate-db annotation)))
 
