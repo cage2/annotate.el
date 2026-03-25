@@ -7,7 +7,7 @@
 ;; Maintainer: Bastian Bechtold <bastibe.dev@mailbox.org>, cage <cage-dev@twistfold.it>
 ;; URL: https://github.com/bastibe/annotate.el
 ;; Created: 2015-06-10
-;; Version: 2.4.5
+;; Version: 2.5
 ;; Package-Requires: ((emacs "27.1"))
 
 ;; This file is NOT part of GNU Emacs.
@@ -59,7 +59,7 @@
 ;;;###autoload
 (defgroup annotate nil
   "Annotate files without changing them."
-  :version "2.4.5"
+  :version "2.5"
   :group 'text)
 
 (defvar annotate-mode-map
@@ -376,10 +376,10 @@ summary window because does not exist or is in an unsupported
 (defconst annotate-message-annotations-not-found "No annotations found."
   "The message shown when no annotations has been loaded from the database.")
 
-(defconst annotate-thread-delete-button-label "🧹delete"
+(defconst annotate-thread-delete-button-label "❌delete"
   "The label for the button, in thread window, to delete an annotation.")
 
-(defconst annotate-thread-reply-button-label "📝add reply"
+(defconst annotate-thread-reply-button-label "✏️add reply"
   "The label for the button, in thread window, to delete an annotation.")
 
 (defconst annotate-thread-branch-string "├▶")
@@ -902,7 +902,7 @@ to PARENT-ANNOTATION. This new annotation will be saved in the annotations datab
   (annotate-chain-first (cl-first chain)))
 
 (defun annotate-reply-to ()
-  "Reply to the annotation under cursor, if any."
+  "Reply to the annotation under cursor, if such annotation exists."
   (interactive)
   (when-let* ((chain        (annotate-chain-at (point)))
               (parent       (annotate--annotation-with-reply chain))
@@ -4359,19 +4359,15 @@ passed as argument is a leaf."
                                   (concat annotate-thread-trunk-string " "))
                                 line)))
               (promote-to-button (target action type node)
-                (let ((bol (annotate-beginning-of-line-pos))
-                      (eol (annotate-end-of-line-pos)))
-                  (save-match-data
-                    (goto-char bol)
-                    (re-search-forward target)
-                    (let ((start-button (match-beginning 0))
-                          (end-button (match-end 0)))
-                      (make-button start-button
-                                   end-button
-                                   'type type
-                                   'action action
-                                   'annotation-bound node))
-                    (goto-char eol))))
+                (save-match-data
+                  (re-search-forward target)
+                  (let ((start-button (match-beginning 0))
+                        (end-button (match-end 0)))
+                    (make-button start-button
+                                 end-button
+                                 'type type
+                                 'action action
+                                 'annotation-bound node))))
               (insert-stretched-line (line &key (add-newline nil))
                 (insert-rest-line line
                                   (concat "%s%s"
@@ -4390,8 +4386,12 @@ passed as argument is a leaf."
            (inner-node (not (annotate-annotation-root-p node)))
            (lines (append (annotate--split-lines data)
                           (when inner-node
-                            (list annotate-thread-delete-button-label))
-                          (list annotate-thread-reply-button-label)
+                            (list " "))
+                          (if inner-node
+                              (list (concat annotate-thread-delete-button-label
+                                            " "
+                                            annotate-thread-reply-button-label))
+                              (list annotate-thread-reply-button-label))
                           (list "\n")))
            (rest-lines (cl-rest lines)))
       (insert-first-line lines)
@@ -4406,13 +4406,14 @@ passed as argument is a leaf."
                           inner-node)
                        (insert-stretched-line line :add-newline t)
                    (insert-rest-line line "%s%s %s\n"))
-                 (goto-char (1- (annotate-beginning-of-line-pos))) ; go to "reply" button
+                 (goto-char (1- (annotate-beginning-of-line-pos)))
+                 (goto-char (annotate-beginning-of-line-pos))
                  (promote-to-button annotate-thread-reply-button-label
                                     'annotate-thread-reply-button-pressed
                                     'annotate-thread-reply-node-button
                                     node)
                  (when inner-node
-                   (goto-char (1- (annotate-beginning-of-line-pos))) ; go to "delete" button
+                   (goto-char (annotate-beginning-of-line-pos)) ; go to "delete" button
                    (promote-to-button annotate-thread-delete-button-label
                                       'annotate-thread-delete-button-pressed
                                       'annotate-thread-delete-node-button
@@ -4535,11 +4536,11 @@ passed as argument is a leaf."
   (cl-flet ((set-font-lock-mode ()
               (font-lock-add-keywords
                nil
-               `(("delete$\\|add reply$"
+               `(("❌delete\\|✏️add reply"
                   (0 `(face ,annotate-thread-action-face) append))
                  ("from:\\(.+$\\)" (1 `(face ,annotate-thread-author-face) append))
                  ("\\(from:\\)\\(.+$\\)" (1 `(face ,annotate-thread-tree-arrow-face) append))
-                 ("^\\*\\*.+$" (0  `(face ,annotate-thread-header-face) append))
+                 ("^🡆.+$" (0  `(face ,annotate-thread-header-face) append))
                  ("↑" (0 `(face ,annotate-thread-action-face) append))
                  ("▶" (0 `(face ,annotate-thread-tree-arrow-face) append))
                  ("├\\|│\\|╰\\|┆" (0 `(face ,annotate-thread-tree-face) append))))))
@@ -4553,7 +4554,7 @@ passed as argument is a leaf."
            (set-font-lock-mode)
            (let ((annotated-text (annotate-annotated-text object))
                  (children-fn    (annotate-get-tree-children-clsr annotations-db)))
-             (insert "** " annotated-text "\n\n")
+             (insert "🡆" annotated-text "\n\n")
              (annotate-print-tree object
                                   children-fn
                                   #'annotate-get-tree-data
