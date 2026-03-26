@@ -210,7 +210,7 @@ Calling this command will show a summary window that prints all the annotations 
 
 ** Annotations thread
 
-Starting from version ~2.5~, each annotation can contains an arbitrary number of replies that are also annotations. The results is a set of annotation arranged in a tree structure called: a "/thread/".
+Starting from version ~2.5~, each annotation can contains an arbitrary number of replies that are also annotations. The results is a set of annotation arranged in a tree structure called: "/thread/".
 
 *** ~C-c C-t~ (function annotate-show-thread-at-point)
 Show a buffer with the annotation thread for the annotation under cursor.
@@ -252,7 +252,7 @@ The expression:
 
 #+BEGIN_SRC lisp
   (setf annotate-annotation-expansion-map
-	'((\"%d\" \"date +%Y-%m-%d\" t)))
+        '(("%d" "date +%Y-%m-%d" t)))
 #+END_SRC
 
 Will expand any occurrence of \"%d\" in the annotation's text with the current date (format: \"YYYY-MM-DD\"), moreover the results will be trimmed.
