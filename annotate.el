@@ -2016,6 +2016,37 @@ ANNOTATIONS containd the annotations and INDIRECT-BUFFER
                      (annotate-ending-of-annotation    a)))
                 (annotate-describe-annotations)))
 
+(defun annotate-remove-stray-replies (annotations-db)
+  "Remove any reply in ANNOTATION-DB that is a reply of a non existent parent."
+  (cl-labels ((remove-stray (annotations-db)
+                (let ((stray-found nil))
+                  (cl-values
+                   (cl-loop for record in annotations-db
+                            collect
+                            (let* ((annotations (annotate-annotations-from-dump record))
+                                   (filtered-annotations (cl-remove-if
+                                                          (lambda (a)
+                                                            (when-let* ((parent-id (annotate-annotation-reply-to a)))
+                                                              ;; if  parent-id is  null
+                                                              ;; the  message  is  athe
+                                                              ;; root of  the tread, do
+                                                              ;; not remove
+                                                              (let ((found (annotate--find-annotation annotations-db
+                                                                                                      parent-id)))
+                                                                (when (not found)
+                                                                  (setf stray-found t))
+                                                                (not found))))
+                                                          annotations)))
+                              (annotate-make-record (annotate-filename-from-dump record)
+                                                    filtered-annotations
+                                                    (annotate-checksum-from-dump record))))
+                   stray-found))))
+    (cl-multiple-value-bind (db recurse)
+        (remove-stray annotations-db)
+      (if recurse
+          (annotate-remove-stray-replies db)
+        db))))
+
 (cl-defun annotate-save-annotations (&key
                                      (annotations-to-save (annotate--current-file-annotation))
                                      (replace t))
@@ -2068,13 +2099,17 @@ with ANNOTATIONS-TO-SAVE, append otherwise."
                                                            annotations-to-save
                                                            (annotate-buffer-checksum))
                       all-records))))
+        ;; performs some cleaning up
         ;; remove duplicate entries (a user reported seeing them)
         (dolist (entry all-records)
           (delete-dups entry))
-        ;; skip files with no annotations
-        (annotate-dump-annotation-data (cl-remove-if (lambda (entry)
-                                                       (null (annotate-annotations-from-dump entry)))
-                                                     all-records))
+        ;; remove all the replies that has no parents (recursively)
+        ;; then remove all the records that references file that contains no annotations
+        (let* ((only-valid-replies (annotate-remove-stray-replies all-records))
+               (only-annotated-file (cl-remove-if (lambda (entry)
+                                                    (null (annotate-annotations-from-dump entry)))
+                                                  only-valid-replies)))
+             (annotate-dump-annotation-data only-annotated-file))
         (when annotate-use-messages
           (message "Annotations saved."))))
      ((annotate-indirect-buffer-current-p)
@@ -3329,21 +3364,20 @@ pressed."
          (ending          (button-get button 'ending))
          (annotations-db  (annotate-load-annotation-data t))
          (annotation      (button-get button 'annotation-bound))
-         (no-thread-db    (annotate-remove-annotation-thread annotations-db annotation))
-         (filtered        (annotate-db-remove-annotation no-thread-db
-                                                         filename
-                                                         beginning
-                                                         ending)))
-    (annotate-dump-annotation-data filtered) ; save the new database with entry removed
+         (no-thread-db    (annotate-remove-annotation-thread annotations-db annotation)))
+    (annotate-dump-annotation-data no-thread-db) ; save the new database with entry removed
     (cl-labels ((redraw-summary-window () ; update the summary window
                   (with-current-buffer annotate-summary-buffer-name
                     (read-only-mode -1)
                     (save-excursion
                       (button-put button 'invisible t)
-                      (let ((annotation-button (previous-button (point))))
-                        (button-put annotation-button 'face '(:strike-through t)))
-                      (let ((replace-button (next-button (point))))
-                        (button-put replace-button 'invisible t)))
+                      (let* ((annotation-button (previous-button (point)))
+                             (replace-button (next-button (point)))
+                             (replace-button-end (button-end replace-button))
+                             (thread-button (next-button replace-button-end)))
+                        (button-put annotation-button 'face '(:strike-through t))
+                        (button-put replace-button 'invisible t)
+                        (button-put thread-button 'invisible t)))
                     (read-only-mode 1))))
       (redraw-summary-window)
       (annotate-update-visited-buffer-maybe filename))))
