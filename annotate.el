@@ -3360,8 +3360,6 @@ Compatibility wrapper for the function `info-setup' and `info-pop-to-buffer'."
   "Callback for summary window fired when a \"delete\" button is
 pressed."
   (let* ((filename        (button-get button 'file))
-         (beginning       (button-get button 'beginning))
-         (ending          (button-get button 'ending))
          (annotations-db  (annotate-load-annotation-data t))
          (annotation      (button-get button 'annotation-bound))
          (no-thread-db    (annotate-remove-annotation-thread annotations-db annotation)))
