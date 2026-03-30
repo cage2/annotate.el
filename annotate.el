@@ -337,7 +337,10 @@ summary window because does not exist or is in an unsupported
 (defconst annotate-summary-list-prefix-snippet "** Annotated text: "
   "The string used as prefix for each annotation snippet item in summary window.")
 
-(defconst annotate-ellipse-text-marker "..."
+(defconst annotate-summary-list-prefix-reply "*** Reply to: "
+  "The string used as prefix for each annotation snippet item in summary window.")
+
+(defconst annotate-ellipse-text-marker "…"
   "The string used when a string is truncated with an ellipse.")
 
 (defconst annotate-info-root-name "dir"
@@ -3453,7 +3456,7 @@ results can be filtered with a simple query language: see
                       (concat (substring text 0 substring-limit)
                               annotate-ellipse-text-marker)
                     text)))
-              (wrap      (text)
+              (wrap (text)
                 (annotate-wrap-text text "\""))
               (insert-item-summary (filename
                                     snippet-text
@@ -3563,7 +3566,39 @@ results can be filtered with a simple query language: see
                  (annotate-summary-ask-query
                   (read-from-minibuffer "Query: "))
                  (t
-                  ".*"))))
+                  ".*")))
+              (insert-root-item (db-filename filter-query annotation-fields)
+                (let* ((button-text      (format "%s"
+                                                 (annotate-annotation-string annotation-fields)))
+                       (annotation-begin (annotate-beginning-of-annotation annotation-fields))
+                       (annotation-end   (annotate-ending-of-annotation    annotation-fields))
+                       (snippet-text     (build-snippet db-filename
+                                                        annotation-begin
+                                                        annotation-end)))
+                  (insert-item-summary db-filename
+                                       snippet-text
+                                       button-text
+                                       annotation-begin
+                                       annotation-end
+                                       annotation-fields
+                                       filter-query)))
+              (insert-reply-item (annotations-db reply-fields)
+                (let* ((parent-id       (annotate-annotation-reply-to reply-fields))
+                       (parent          (annotate--find-annotation annotations-db parent-id))
+                       (parent-text     (annotate-annotation-string parent))
+                       (annotation-text (annotate-annotation-string reply-fields)))
+                  (insert annotate-summary-list-prefix-reply
+                          (wrap (ellipsize parent-text ""))
+                          "\n"
+                          (ellipsize annotation-text "")
+                          "\n\n")
+                  (insert-button annotate-summary-show-thread-button-label
+                                 'annotation-bound parent
+                                 'action
+                                 'annotate-summary-show-thread-button-pressed
+                                 'type
+                                 'annotate-summary-show-thread-button)
+                  (insert "\n\n"))))
     (when save-annotations
       (annotate-save-all-annotated-buffers))
     (let* ((filter-query (get-query))
@@ -3589,20 +3624,12 @@ results can be filtered with a simple query language: see
                 (insert (format (concat annotate-summary-list-prefix-file "%s\n\n")
                                 db-filename))
                 (dolist (annotation-fields all-annotations)
-                  (let* ((button-text      (format "%s"
-                                                   (annotate-annotation-string annotation-fields)))
-                         (annotation-begin (annotate-beginning-of-annotation annotation-fields))
-                         (annotation-end   (annotate-ending-of-annotation    annotation-fields))
-                         (snippet-text     (build-snippet db-filename
-                                                          annotation-begin
-                                                          annotation-end)))
-                    (insert-item-summary db-filename
-                                         snippet-text
-                                         button-text
-                                         annotation-begin
-                                         annotation-end
-                                         annotation-fields
-                                         filter-query))))))
+                  (if (annotate-annotation-root-p annotation-fields)
+                      (insert-root-item db-filename
+                                        filter-query
+                                        annotation-fields)
+                    (insert-reply-item dump
+                                       annotation-fields))))))
           (read-only-mode 1))))))
 
 ;;;; end summary window procedures
@@ -4074,9 +4101,6 @@ The annotations in each record are sorted by starting point in ascending order."
                                                                     filter-annotations)))
                                  (setf filtered-annotations
                                        (remq nil filtered-annotations))
-                                 (setf filtered-annotations
-                                       (cl-remove-if-not #'annotate-annotation-root-p
-                                                         filtered-annotations))
                                  (when filtered-annotations
                                    (let ((filename (annotate-filename-from-dump
                                                     single-record))
@@ -4084,7 +4108,15 @@ The annotations in each record are sorted by starting point in ascending order."
                                                     single-record)))
                                      (setf filtered-annotations
                                            (sort filtered-annotations
-                                                 #'annotate-db-annotations-starts-before-p))
+                                                 (lambda (a b)
+                                                   (cond
+                                                    ((and (annotate-annotation-root-p a)
+                                                          (annotate-annotation-root-p b))
+                                                     (annotate-db-annotations-starts-before-p a b))
+                                                    ((annotate-annotation-root-p a)
+                                                     a)
+                                                    (t
+                                                     b)))))
                                      (when remove-annotations-cutoff-point
                                        (setf filtered-annotations
                                              (cl-remove-if (lambda (a)
