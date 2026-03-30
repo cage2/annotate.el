@@ -358,7 +358,7 @@ summary window because does not exist or is in an unsupported
 (defconst annotate-annotation-prompt "Annotation: "
   "The prompt when asking user for annotation modification.")
 
-(defconst annotate-summary-delete-button-label "🧹delete"
+(defconst annotate-summary-delete-button-label "❌delete"
   "The label for the button, in summary window, to delete an annotation.")
 
 (defconst annotate-summary-replace-button-label "📝replace"
