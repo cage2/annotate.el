@@ -3588,7 +3588,7 @@ results can be filtered with a simple query language: see
                        (parent-text     (annotate-annotation-string parent))
                        (annotation-text (annotate-annotation-string reply-fields)))
                   (insert annotate-summary-list-prefix-reply
-                          (wrap (ellipsize parent-text ""))
+                          (wrap (ellipsize (clean-snippet parent-text) ""))
                           "\n"
                           (ellipsize annotation-text "")
                           "\n\n")
