@@ -393,7 +393,7 @@ summary window because does not exist or is in an unsupported
 
 (defconst annotate-thread-trunk-stretch-string "┆")
 
-(defcustom annotate-thread-header-face '(:height 1.5)
+(defcustom annotate-thread-header-face 'font-lock-doc-face
   "Face for header text (the annotated text) in the thread window."
   :type '(repeat (plist)))
 
@@ -4619,7 +4619,7 @@ passed as argument is a leaf."
                     (0 `(face ,annotate-thread-action-face) append))
                    ("from:\\(.+$\\)" (1 `(face ,annotate-thread-author-face) append))
                    ("\\(from:\\)\\(.+$\\)" (1 `(face ,annotate-thread-tree-arrow-face) append))
-                   ("^🡆.+$" (0  `(face ,annotate-thread-header-face) append))
+                   ("\\(┃\\|┏\\|┗\\).*" (0  `(face ,annotate-thread-header-face) append))
                    ("↑" (0 `(face ,annotate-thread-action-face) append))
                    ("▶" (0 `(face ,annotate-thread-tree-arrow-face) append))
                    ("├\\|│\\|╰\\|┆" (0 `(face ,annotate-thread-tree-face) append))))))
@@ -4633,7 +4633,10 @@ passed as argument is a leaf."
            (set-font-lock-mode)
            (let ((annotated-text (annotate-annotated-text object))
                  (children-fn    (annotate-get-tree-children-clsr annotations-db)))
-             (insert "🡆" annotated-text "\n\n")
+             (insert "┏\n")
+             (cl-loop for line in (annotate--split-lines annotated-text)
+                      do (insert "┃" line "\n"))
+             (insert "┗\n")
              (annotate-print-tree object
                                   children-fn
                                   #'annotate-get-tree-data
